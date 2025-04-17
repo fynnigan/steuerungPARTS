@@ -1,0 +1,7 @@
+4ADEs:
+total time   = 0.384 seconds
+total time   = 1.86 seconds
+-79.35483870967741
+Gripper:
+total time   = 1.18 seconds
+total time   = 5.9 seconds
