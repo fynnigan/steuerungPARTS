@@ -21,6 +21,7 @@ import matplotlib
 import logging
 import cv2
 
+
 class structure():
     pass
 
@@ -268,11 +269,11 @@ def init():
     
     
     
-    
+    # ursprünglich die nächsten 3 falsch
     #Options for six-bar linkages, if all False RevoluteJoint2D are used for the six-bar linkages
-    simulation.simplifiedLinksIdealRevoluteJoint2D = False #simplified model using only revoluteJoints at edges
-    simulation.massPoints2DIdealRevoluteJoint2D = False
-    simulation.simplifiedLinksIdealCartesianSpringDamper = False
+    simulation.simplifiedLinksIdealRevoluteJoint2D = True #simplified model using only revoluteJoints at edges
+    simulation.massPoints2DIdealRevoluteJoint2D = True
+    simulation.simplifiedLinksIdealCartesianSpringDamper = True
     
     simulation.useCompliantJoints=False          #False for ideal
     simulation.numberOfElementsBeam=8
@@ -300,13 +301,14 @@ def init():
     #Options for Solver
     simulation.SolveDynamic = False #set False to SolveStatic
     simulation.endTime = 10 #used only if interactive marker True
-    simulation.nrSteps = int(1e2) 
+    simulation.nrSteps = int(1e2)
 
 
 
     #Options for output
     simulation.saveSensorValues = True
     simulation.sensorValuesFile = 'output/SensorValues.pickle'
+    # sensor_values_path = os.path.join(output_dir, 'SensorValues.pickle')
     simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
 
     simulation.sensorValuesFile2 = 'output/SensorValues2.pickle'
