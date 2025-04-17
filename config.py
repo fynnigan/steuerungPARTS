@@ -21,7 +21,6 @@ import matplotlib
 import logging
 import cv2
 
-
 class structure():
     pass
 
@@ -309,7 +308,6 @@ def init():
     simulation.saveSensorValues = True
     simulation.sensorValuesFile = 'output/SensorValues.pickle'
     # sensor_values_path = os.path.join(output_dir, 'SensorValues.pickle')
-    simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
 
     simulation.sensorValuesFile2 = 'output/SensorValues2.pickle'
     simulation.sensorValuesTimeFile2 = 'output/SensorValuesTime2.pickle'
