@@ -9,6 +9,8 @@ Created on Mon Mar 24 10:13:16 2025
 import os
 import sys
 
+import csv
+
 
 if __name__ == "__main__":
     if os.getcwd().split('/')[-1].__contains__('exampleScripts'):
@@ -395,18 +397,65 @@ if simulateArm:
     lengthInitX = 0.229*nx
     lengthInity = 0.229*ny
     GenerateGridSimulation(nx, ny, adeNodes)
-    adeNodes.AddElementNodes(ID = 11, Nodes = [11,12,13])
-    # adeNodes.AddElementNodes(ID = 12, Nodes = [11,13,14])
-    # adeNodes.AddElementNodes(ID = 13, Nodes = [11,13,15])
-    # adeNodes.AddElementNodes(ID = 14, Nodes = [13,14,17])
-    # adeNodes.AddElementNodes(ID = 15, Nodes = [13,15,18])
-    # adeNodes.AddElementNodes(ID = 16, Nodes = [14,16,17])
-    # adeNodes.AddElementNodes(ID = 17, Nodes = [15,18,19])
-    # adeNodes.AddElementNodes(ID = 18, Nodes = [16,17,20])
-    # adeNodes.AddElementNodes(ID = 19, Nodes = [18,19,21])
+    # adeNodes.AddElementNodes(ID = 11, Nodes = [11,12,13])
     
+    existingNodeIDs = list(adeNodes.nodeDefinition.keys())
+    maxNodeID = max(existingNodeIDs)
     
-    nodeList = [13]
+    yCoordinates = [coord[1] for coord in adeNodes.nodeDefinition.values()]
+    yMaxArm = max(yCoordinates)
+    
+    nodeYList = [(nodeID, coord[1]) for nodeID, coord in adeNodes.nodeDefinition.items()]
+    nodeYList.sort(key=lambda x: x[1], reverse=True)
+    topNode1, topNode2 = nodeYList[0][0], nodeYList[1][0]
+    print("IDs der zwei höchsten Knoten:", topNode1, topNode2)
+    
+    # load gripper seperately
+    tempGripper = df.ElementDefinition()
+    tempGripper.ReadMeshFile('data/experiments/gripper/initial9_gripper')
+    
+    # offset Nodes Coordinates on top of arm
+    newNodeDefinition = {}
+    nodeIDMap = {}
+    
+    for oldID, coord in tempGripper.nodeDefinition.items():
+        newID = oldID + maxNodeID - 2
+        newCoord = np.array([coord[0], coord[1] + yMaxArm])
+        newNodeDefinition[newID] = newCoord
+        nodeIDMap[oldID] = newID
+    
+    # add Nodes
+    adeNodes.nodeDefinition.update(newNodeDefinition)
+    
+    # offset ADE IDs to come after the ADEs of the Arm
+    for elemID, nodes in tempGripper.elements.items():
+        newElemID = max(adeNodes.elements.keys()) + 1
+        newNodes = [nodeIDMap[n] for n in nodes]
+        adeNodes.AddElementNodes(ID=newElemID, Nodes=newNodes, setLists=False)
+        
+    # add connections to new Node IDs
+    for connID, connList in tempGripper.connectionList.items():
+        newConnList = []
+        for conn in connList:
+            newConn = conn.copy()
+            newConn[1] = nodeIDMap.get(conn[1], conn[1])
+            newConn[2] = nodeIDMap.get(conn[2], conn[2])
+            newConn[3] = nodeIDMap.get(conn[3], conn[3])
+            newConnList.append(newConn)
+        
+        newConnID = max(adeNodes.connectionList.keys()) + 1
+        adeNodes.connectionList[newConnID] = newConnList
+    
+    # update lists
+    adeNodes.SetConnectionList()
+    adeNodes.SetListOfNodes()
+    adeNodes.SetADEPointsOfNode()
+    adeNodes.SetNodeNumbersToAde()
+    
+    # change this to something that works with different grippers too
+    nodeList = [topNode2 + 2]
+    print('TCP Node ID:', nodeList)
+    
     # config.simulation.setMeshWithCoordinateConst = False
     config.simulation.setMeshWithCoordinateConst = True
 
@@ -453,8 +502,8 @@ def sensorList(nodeList, adeNodes, mbs):
 
 
 
-
-
+usePTP = True
+useSyncPTP = False
 
 
 # +++++++++++++++++++++++++++++++++++++++
@@ -732,7 +781,7 @@ while not startSimulation:
                 target = np.array([0.5, 0])
                 # set max velocity and acceleration
                 vmax = 20
-                amax = 50
+                amax = 10
                 
                 actorTraj = []
                 
@@ -744,18 +793,32 @@ while not startSimulation:
                 ikObj.InverseKinematicsRelative(None, np.array(target))
                 targetLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
                 
+                
+                
                 # calculate trajectory for every actuator
-                traj = tf.PTPTrajectory(startLengths, targetLengths, vmax, amax)
+                if usePTP:
+                    traj = tf.PTPTrajectory(startLengths, targetLengths, vmax, amax)
+                elif useSyncPTP:
+                    traj = tf.syncPTPTrajectory(startLengths, targetLengths, vmax, amax)
                 
                 t_sim = 0
-                dt = 0.5
+                dt = 0.2
+
+
+                colors = list(mColor.TABLEAU_COLORS.values())
+                print('Number of Akuators:', traj.numActuators)
+
                 
                 # run loop for time the slowest actuator needs
                 while t_sim < np.max(traj.t_total):
                     # get actuator lenghts for current time step
                     l1 = traj.evaluate(t_sim)
+                    
+                    for i in range(traj.numActuators):
+                        plt.scatter(t_sim, l1[i], s=10, color=colors[i % len(colors)], label=f"Aktuator {i+1}")
+                    
                         
-                    print('t_sim:', t_sim)
+                    # print('t_sim:', t_sim)
                     
     
                     ### toDO change here for more nodes the error!!!!
@@ -818,8 +881,8 @@ while not startSimulation:
                         #     plt.scatter(iWantToGoToThisValue[0], iWantToGoToThisValue[1], marker='d', color='red', s=48)
                             
                             
-                        for plotSensorTCP in sensorTCP:
-                            plt.scatter( mbs.GetSensorValues(plotSensorTCP)[0], mbs.GetSensorValues(plotSensorTCP)[1], marker='x', color='red', s=48)
+                        # for plotSensorTCP in sensorTCP:
+                        #     plt.scatter( mbs.GetSensorValues(plotSensorTCP)[0], mbs.GetSensorValues(plotSensorTCP)[1], marker='x', color='red', s=48)
                             
     
                         cnt=cnt+1
