@@ -18,12 +18,18 @@ if __name__ == "__main__":
     if sys.path[0].split('/')[-1].__contains__('exampleScripts'):
         sys.path.append(os.getcwd())
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-output_dir = os.path.join(script_dir, 'output')
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# output_dir = os.path.join(script_dir, 'output')
     
 
-solutionFilePathRel="./solution/coordinatesSolution.txt"
-solutionFilePath = os.path.join(output_dir, os.path.basename(solutionFilePathRel))
+# solutionFilePathRel="./solution/coordinatesSolution.txt"
+# solutionFilePath = os.path.join(output_dir, os.path.basename(solutionFilePathRel))
+# if os.path.isfile(solutionFilePath):
+#     os.remove(solutionFilePath)
+
+script_dir = os.path.dirname(__file__)
+solutionFilePath = os.path.join(script_dir, 'solution', 'coordinatesSolution.txt')
+
 if os.path.isfile(solutionFilePath):
     os.remove(solutionFilePath)
     
@@ -386,6 +392,7 @@ simulateArm=True
 
 my_dir = os.path.abspath(os.path.join(os.getcwd(), 'functions'))
 
+TCPID = 0
 
 if simulateArm:
     adeNodes = df.ElementDefinition()
@@ -412,7 +419,8 @@ if simulateArm:
     
     # load gripper seperately
     tempGripper = df.ElementDefinition()
-    tempGripper.ReadMeshFile('data/experiments/gripper/initial9_gripper')
+    meshPath = os.path.join(script_dir, "data", "experiments", "gripper", "initial9_gripper")
+    tempGripper.ReadMeshFile(meshPath)
     
     # offset Nodes Coordinates on top of arm
     newNodeDefinition = {}
@@ -454,10 +462,47 @@ if simulateArm:
     
     # change this to something that works with different grippers too
     nodeList = [topNode2 + 2]
-    print('TCP Node ID:', nodeList)
+    nodeList.append(topNode2 + 1)
+    nodeList.append(topNode2 + 3)
+    # nodeList = [topNode2 + 1, topNode2 + 2, topNode2 + 3] # 13, 14, 15 also die drei in einer linie vom TCP 14
+    print('TCP Node ID:', nodeList[0])
+    TCPID = nodeList[0]
+    
+    # sort all nodes for y coordinates to find two highest points on the gripper
+    nodeYList = [(nodeID, coord[1]) for nodeID, coord in adeNodes.nodeDefinition.items()]
+    nodeYList.sort(key=lambda x: x[1], reverse=True)
+    topNode1, topNode2 = nodeYList[0][0], nodeYList[1][0] # zwei Spitzen des Greifers
+    
+    # nodeList.append(topNode1)
+    # nodeList.append(topNode2)
+    
+    # print('GripperTopNode1:', topNode1, 'GripperTopNode2:', topNode2)
+    
+    
     
     # config.simulation.setMeshWithCoordinateConst = False
     config.simulation.setMeshWithCoordinateConst = True
+    
+
+
+# array zum speicher der Koordinaten, um den Versatz berechnen zu können
+TCPcoords = []
+for nodeID in nodeList:
+    if nodeID == TCPID:
+        continue
+    coord = adeNodes.nodeDefinition[nodeID]
+    TCPcoords.append([coord[0], coord[1]])
+
+# Koordinaten des Referenz TCPs    
+TCPRefCoord = np.array(adeNodes.nodeDefinition[TCPID])
+
+# Offset aller TCPs zu Referenz TCP
+TCPOffsets = []
+for coord in TCPcoords:
+    offset = np.array(coord) - TCPRefCoord
+    TCPOffsets.append(offset)
+    
+
 
 
 if config.simulation.setMeshWithCoordinateConst:
@@ -502,8 +547,8 @@ def sensorList(nodeList, adeNodes, mbs):
 
 
 
-usePTP = True
-useSyncPTP = False
+usePTP = False
+useSyncPTP = True
 
 
 # +++++++++++++++++++++++++++++++++++++++
@@ -532,7 +577,7 @@ while not startSimulation:
 
         SC.visualizationSettings.nodes.show= False
         SC.visualizationSettings.markers.show= False
-        SC.visualizationSettings.connectors.show= False
+        SC.visualizationSettings.connectors.show= True
 
         SC.visualizationSettings.openGL.lineWidth=2
         SC.visualizationSettings.openGL.lineSmooth=True
@@ -777,22 +822,54 @@ while not startSimulation:
                 detaX=np.array([0,0])
                 
                 # set start and end point
-                start = np.array([0, 0])
-                target = np.array([0.5, 0])
+                # start = np.array([0, 0, 0, 0, 0, 0])
+                # target = np.array([0.5, 0, 0.5, 0, 0.5, 0])
+                # start = np.array([0, 0])
+                # target = np.array([0.5, 0])
+                
+                
+                targetCoord = np.array([0.5, 0])
+                targetAngle = -np.pi/4 # in bogenmass
+                
+                # Rotationsmatrix
+                R = np.array([
+                    [np.cos(targetAngle), -np.sin(targetAngle)],
+                    [np.sin(targetAngle),  np.cos(targetAngle)]
+                ])
+                
+                # Rotierte Zielkoordinaten berechnen relativ zu hauptTCP
+                rotatedTargets = [targetCoord + R @ offset for offset in TCPOffsets]
+
+                # neue Koordinaten relativ zu ihrer vorherigen Position
+                relativeTargetOffsets = np.array(rotatedTargets) - np.array(TCPOffsets)
+            
+                start = [0] * len(nodeList) * 2
+                    
+
+                # alle zielpunkte anfuegen
+                target = [targetCoord[0], targetCoord[1]]
+                for i in relativeTargetOffsets:
+                    target.append(i[0])
+                    target.append(i[1])
+
+                
                 # set max velocity and acceleration
                 vmax = 20
                 amax = 10
                 
                 actorTraj = []
                 
+                
                 # calculate actuator Lengths for start position
-                ikObj.InverseKinematicsRelative(None, np.array(start))
+                ikObj.InverseKinematicsRelative(None, np.array(start), [0,1,2])
                 startLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
+                print('ikine start calculated')
+                
                 
                 # calculate actuator Lengths for target position
-                ikObj.InverseKinematicsRelative(None, np.array(target))
+                ikObj.InverseKinematicsRelative(None, np.array(target), [0,1,2])
                 targetLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
-                
+                print('ikine target calculated')
                 
                 
                 # calculate trajectory for every actuator
@@ -801,21 +878,21 @@ while not startSimulation:
                 elif useSyncPTP:
                     traj = tf.syncPTPTrajectory(startLengths, targetLengths, vmax, amax)
                 
+                print('traj calculated')
+                
                 t_sim = 0
-                dt = 0.2
+                dt = 1
 
 
                 colors = list(mColor.TABLEAU_COLORS.values())
-                print('Number of Akuators:', traj.numActuators)
 
                 
                 # run loop for time the slowest actuator needs
                 while t_sim < np.max(traj.t_total):
                     # get actuator lenghts for current time step
                     l1 = traj.evaluate(t_sim)
-                    
-                    for i in range(traj.numActuators):
-                        plt.scatter(t_sim, l1[i], s=10, color=colors[i % len(colors)], label=f"Aktuator {i+1}")
+                    # for i in range(traj.numActuators):
+                    #     plt.scatter(t_sim, l1[i], s=10, color=colors[i % len(colors)], label=f"Aktuator {i+1}")
                     
                         
                     # print('t_sim:', t_sim)
