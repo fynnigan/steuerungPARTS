@@ -20,6 +20,11 @@ import numpy as np
 import matplotlib
 import logging
 import cv2
+import os
+
+script_dir = os.path.dirname(__file__)
+output_dir = os.path.join(script_dir, 'output')
+solution_dir = os.path.join(script_dir, 'solution')
 
 
 class structure():
@@ -137,7 +142,8 @@ def init():
     global data
     data = structure()
 
-    data.ademoveListLocation =  'data/moveList/Fahrt014ADE.txt'   # Location of Save file Bsp.:['data\movelst\demo_ADE3.txt','data\movelst\save_4ADE_1Punkt_Fahrt2.txt','data\movelst\save_01.txt']
+    # data.ademoveListLocation =  'data/moveList/Fahrt014ADE.txt'   # Location of Save file Bsp.:['data\movelst\demo_ADE3.txt','data\movelst\save_4ADE_1Punkt_Fahrt2.txt','data\movelst\save_01.txt']
+    data.ademoveListLocation = os.path.join(script_dir, "data", "moveList", "Fahrt014ADE.txt")
 
     #%%+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++s
     # Camera config
@@ -155,8 +161,9 @@ def init():
     # 'data//experiments//walker//Image//'
     # 'data//experiments//rollingGait//Image//'
 
-    camera.imageFolder = 'data/experiments/rollingGait/Image/'  # Folder where Images are Read from if Camera isnt Available
-
+    # camera.imageFolder = 'data/experiments/rollingGait/Image/'  # Folder where Images are Read from if Camera isnt Available
+    camera.imageFolder = os.path.join(script_dir, 'data', 'experiments', 'rollingGait', 'Image')
+    
 
     camera.ID = 0
 
@@ -212,8 +219,8 @@ def init():
     #measurement.xCord = 1080     # x Distance of the Coordinate Markers in mm
     #measurement.yCord = 520      # y Distance of the Coordinate Markers in mm
 
-    measurement.calibrationFolder = 'data/calibrationData/'#'data/calibration3DNear/'#'data/allCalibrationData/'#'data/calibration3DNear/'#
-
+    # measurement.calibrationFolder = 'data/calibrationData/'#'data/calibration3DNear/'#'data/allCalibrationData/'#'data/calibration3DNear/'#
+    measurement.calibrationFolder = os.path.join(script_dir, 'data', 'calibrationData')
     
     # measurement.ret = np.genfromtxt(measurement.calibrationFolder+'ret.txt',delimiter = ',',dtype = float)  #Calibration Data
     # measurement.mtx = np.genfromtxt(measurement.calibrationFolder+'mtx.txt',delimiter = ',',dtype = float)
@@ -307,15 +314,19 @@ def init():
 
     #Options for output
     simulation.saveSensorValues = True
-    simulation.sensorValuesFile = 'output/SensorValues.pickle'
-    # sensor_values_path = os.path.join(output_dir, 'SensorValues.pickle')
-    simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
-
-    simulation.sensorValuesFile2 = 'output/SensorValues2.pickle'
-    simulation.sensorValuesTimeFile2 = 'output/SensorValuesTime2.pickle'
+    # simulation.sensorValuesFile = 'output/SensorValues.pickle'
+    # simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
+    # simulation.sensorValuesFile2 = 'output/SensorValues2.pickle'
+    # simulation.sensorValuesTimeFile2 = 'output/SensorValuesTime2.pickle'
+    
+    simulation.sensorValuesFile = os.path.join(output_dir, 'SensorValues.pickle')
+    simulation.sensorValuesTimeFile = os.path.join(output_dir, 'SensorValuesTime.pickle')
+    simulation.sensorValuesFile2 = os.path.join(output_dir, 'SensorValues2.pickle')
+    simulation.sensorValuesTimeFile2 = os.path.join(output_dir, 'SensorValuesTime2.pickle')
     
     simulation.saveImages = False
-    simulation.imageFilename = 'output/SimulationImages/Simulation'
+    # simulation.imageFilename = 'output/SimulationImages/Simulation'
+    simulation.imageFilename = os.path.join(output_dir, 'SimulationImages', 'Simulation')
     
     
     ### settings for interactive marker
@@ -361,6 +372,7 @@ def init():
     #Options for Visualization
     simulation.frameList = True
     simulation.showJointAxes=True
+    simulation.Solution = True
 
     simulation.animation=False
     
@@ -370,7 +382,8 @@ def init():
     #Options for Solution Viewer
     simulation.displaySimulation = False
     simulation.solutionViewer = True
-    simulation.solutionViewerFile = 'solution/coordinatesSolution.txt'
+    # simulation.solutionViewerFile = 'solution/coordinatesSolution.txt'
+    simulation.solutionViewerFile = os.path.join(solution_dir, 'coordinatesSolution.txt')
     simulation.solutionWritePeriod = 0.01
 
     #%%+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -391,8 +404,12 @@ def init():
     output.debug = True
 
     output.plot = False
-    output.folder = 'output/30_06_21/ADEFahrt1/'
-    output.coordinateFile = 'output/coordinates.txt'
+    # output.folder = 'output/30_06_21/ADEFahrt1/'
+    # output.coordinateFile = 'output/coordinates.txt'
+    
+    output_folder = os.path.join(script_dir, 'output', '30_06_21', 'ADEFahrt1')
+    output.folder = output_folder
+    output.coordinateFile = os.path.join(script_dir, 'output', 'coordinates.txt')
 
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO, datefmt='%m/%d/%Y %H:%M:%S ')
     logging.getLogger('matplotlib.font_manager').disabled = True

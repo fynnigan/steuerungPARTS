@@ -297,10 +297,10 @@ class InverseKinematicsATE():
         # assemble with new constraints
         self.mbsIK.Assemble()
         
-    def InverseKinematicsRelative(self, mbs1, offsetList): 
+    def InverseKinematicsRelative(self, mbs1, offsetList, TCPlist): 
         # actorLength_current = []
-        if len(offsetList) != self.nConstraints*2: 
-            raise ValueError("InverseKinematicsATE: function InverseKinematicsRelative expected offsetList of length {} but got {}".format(self.nConstraints*2, len(offsetList)))
+        # if len(offsetList) != self.nConstraints*2: 
+        #     raise ValueError("InverseKinematicsATE: function InverseKinematicsRelative expected offsetList of length {} but got {}".format(self.nConstraints*2, len(offsetList)))
             
         if not(mbs1 is None): 
             for i, oSpringDamper in enumerate(mbs1.variables['springDamperDriveObjects']): 
@@ -321,7 +321,10 @@ class InverseKinematicsATE():
             currentPos += p0[:2].tolist()
             # currentPos  += mbs1.GetNodeOutput(self.nodesError[i], exu.OutputVariableType.Displacement, )[0:2].tolist()
         
-        for i in range(self.nConstraints): 
+        # for i in range(self.nConstraints): 
+        #     newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
+        #     self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
+        for i in TCPlist:
             newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
             self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
             
