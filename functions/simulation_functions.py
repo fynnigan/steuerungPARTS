@@ -268,7 +268,7 @@ class InverseKinematicsATE():
         self.simulationSettings.displayComputationTime = False
         self.simulationSettings.displayStatistics = False
         
-        self.simulationSettings.staticSolver.newton.maxIterations = 50 
+        self.simulationSettings.staticSolver.newton.maxIterations = 20 # ursprünglihc 50
         self.simulationSettings.staticSolver.adaptiveStep = True
         self.simulationSettings.staticSolver.verboseMode = 0
         self.simulationSettings.displayGlobalTimers = 0
@@ -286,7 +286,7 @@ class InverseKinematicsATE():
         # self.simulationSettings.staticSolver.newton.absoluteTolerance = 1e-4
         
         # self.simulationSettings.staticSolver.numberOfLoadSteps = 50
-        self.simulationSettings.staticSolver.numberOfLoadSteps = 25
+        self.simulationSettings.staticSolver.numberOfLoadSteps = 10 # ursprünglihc 25
         # self.simulationSettings.staticSolver.newton.maxIterations = 50 
         # self.simulationSettings.staticSolver.adaptiveStep = True
         # self.simulationSettings.staticSolver.verboseMode = 0
@@ -316,7 +316,8 @@ class InverseKinematicsATE():
             mbs1 = self.mbsIK
         
         currentPos = []
-        for i in range(len(self.sensorsError)): 
+        # for i in range(len(self.sensorsError)): 
+        for i in TCPlist:
             p0 = self.mbsIK.GetSensorValues(self.sensorsError[i])
             currentPos += p0[:2].tolist()
             # currentPos  += mbs1.GetNodeOutput(self.nodesError[i], exu.OutputVariableType.Displacement, )[0:2].tolist()
@@ -324,9 +325,9 @@ class InverseKinematicsATE():
         # for i in range(self.nConstraints): 
         #     newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
         #     self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
-        for i in TCPlist:
+        for i in range(len(TCPlist)):
             newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
-            self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
+            self.mbsIK.SetMarkerParameter(self.mGroundList[TCPlist[i]], 'localPosition', newPos.tolist() + [0])
             
             # self.mbsIK.SetObjectParameter(self.constraints[i], 'offset', currentPos[i] + offsetList[i])
             # print('constraint {}, val {}'.format(i, currentPos[i] + offsetList[i] ))
@@ -468,10 +469,11 @@ class CATC:
     #ToDo
     coordinatePointsATC = []
     nodesATC = []
-
+    
 #user function for friction against velocity vector, including zeroZone
 #CartesianSpringDamper user function for friction
 def UserFunctionSpringDamperFriction(mbs, t, itemNumber, u, v, k, d, offset):
+    # print(f"[DEBUG] Friction function called for item {itemNumber} at t={t}, v={v}, offset={offset}")
     vNorm = NormL2(v)
     f=[v[0],v[1],v[2]]
     if abs(vNorm) < offset[0]:
@@ -2678,9 +2680,16 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
             else:
                 strokeADE[ID] = np.matrix([0,0,0])+strokeOffset
             [ADE[ID],mbs]=ATC(P1,cADE,mbs,sideLengths=strokeADE[ID],P2Direction = P2,connectedSide = Side, ID=ID,nodeNumber=adeNodes.elements)
+            # for localIndex, adeNode in enumerate(adeNodes.elements[ID]):
+            #     mbsNodeID = ADE[ID]["cATC"].nodesATC[localIndex]
             connectors[ID] = ADE[ID]["connectors"]
         else:
             [ADE[ID],mbs]=ATC(adeNodes.nodeDefinition[Nodes[0]],cADE,mbs,P2 = adeNodes.nodeDefinition[Nodes[1]],P3 = adeNodes.nodeDefinition[next(iter(notinList))],connectedSide = Side, ID=ID,nodeNumber=adeNodes.elements)
+            # for localIndex, adeNode in enumerate(adeNodes.elements[ID]):
+            #     mbsNodeID = ADE[ID]["cATC"].nodesATC[localIndex]
+                # nodeNumber = 14
+                # if adeNode == nodeNumber:
+                #     print('Node', nodeNumber, 'has node Number', mbsNodeID, 'in mbs')
             connectors[ID] = ADE[ID]["connectors"]
 
         if adeIDList.index(ID) == 0:   #Storing Points for First ADE
