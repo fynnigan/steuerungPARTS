@@ -734,10 +734,10 @@ def FixCylinderTo2DBodySpring(mbs, objCylinder, nodeID):
     ))
     
 def connectCylinderSprings(mbs, objCylinder, nodeGripper, nodeCylinder):
-    # Marker am Greifer (2D RigidBody)
+    # Marker am Greife
     markerGripper = mbs.AddMarker(MarkerNodeRigid(nodeNumber=nodeGripper))
 
-    # Marker am Zylinder (3D RigidBody)
+    # Marker am Zylinder
     markerZylinder = mbs.AddMarker(MarkerBodyRigid(bodyNumber=objCylinder, localPosition=[0, 0, 0]))
 
     # Ground-Marker an Position des Zylinders

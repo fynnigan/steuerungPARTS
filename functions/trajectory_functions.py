@@ -7,7 +7,7 @@ Created on Sat Mar 22 13:43:44 2025
 """
 
 import numpy as np
-from scipy.interpolate import CubicHermiteSpline
+from scipy.interpolate import splprep, splev, interp1d
 import matplotlib.pyplot as plt
 
 
@@ -126,15 +126,21 @@ def relativeToAbsolutePoints(relativePoints):
         newPoint = absolutePoints[-1] + relativePoints[i]
         absolutePoints.append(newPoint)
     return np.array(absolutePoints)
-    
-def plotTrajAufgabenraum(spline_x, spline_y, points=None):
-    t_vals = np.linspace(0, 1, 200)
-    x_vals = spline_x(t_vals)
-    y_vals = spline_y(t_vals)
 
+def absoluteToRelativePoints(absolutePoints):
+    relativePoints = [absolutePoints[0]]  # erster Punkt als Startpunkt
+    for i in range(1, len(absolutePoints)):
+        rel = absolutePoints[i] - absolutePoints[i - 1]
+        relativePoints.append(rel)
+    return np.array(relativePoints)
+
+
+    
+def plotTrajAufgabenraum(xy_array, points=None):
     plt.figure()
-    plt.plot(x_vals, y_vals, label='Spline-Trajektorie')
+    plt.plot(xy_array[:, 0], xy_array[:, 1], label='Trajektorie')
     if points is not None:
+        # points = absoluteToRelativePoints(points)
         plt.plot(points[:, 0], points[:, 1], 'o', label='Stützpunkte')
     plt.axis('equal')
     plt.legend()
@@ -166,57 +172,110 @@ def targetToNodeListCoords(pos, angle, TCPOffsets):
     return target
 
 
+def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
+    def unit(v):
+        norm = np.linalg.norm(v)
+        return v / norm if norm != 0 else v
+
+    segments = []
+    points = np.asarray(points)
+    n = len(points)
+    prev_out = None
+    for i in range(1, n-1):
+        p0, p1, p2 = points[i-1], points[i], points[i+1]
+        v1 = unit(p0 - p1)
+        v2 = unit(p2 - p1)
+        d = min(radius, np.linalg.norm(p1 - p0) / 2, np.linalg.norm(p1 - p2) / 2)
+        p1_in = p1 + v1 * d
+        p1_out = p1 + v2 * d
+
+        t = np.linspace(0, 1, n_per_corner)
+        if degree == 2:
+            cp = p1
+            bezier = ((1 - t)**2)[:, None] * p1_in + 2 * ((1 - t)*t)[:, None] * cp + (t**2)[:, None] * p1_out
+        elif degree == 3:
+            cp1 = p1_in + (p1 - p1_in) * 0.5
+            cp2 = p1_out + (p1 - p1_out) * 0.5
+            bezier = ((1 - t)**3)[:, None] * p1_in + 3 * ((1 - t)**2 * t)[:, None] * cp1 + 3 * ((1 - t) * t**2)[:, None] * cp2 + (t**3)[:, None] * p1_out
+        elif degree == 5:
+            cp1 = p1_in + 0.2 * (p1 - p1_in)
+            cp2 = p1_in + 0.5 * (p1 - p1_in)
+            cp3 = p1_out + 0.5 * (p1 - p1_out)
+            cp4 = p1_out + 0.2 * (p1 - p1_out)
+            bezier = ((1 - t)**5)[:, None] * p1_in + 5*((1 - t)**4 * t)[:, None] * cp1 + 10*((1 - t)**3 * t**2)[:, None] * cp2 + 10*((1 - t)**2 * t**3)[:, None] * cp3 + 5*((1 - t) * t**4)[:, None] * cp4 + (t**5)[:, None] * p1_out
+        else:
+            raise ValueError("Grad nicht unterstützt")
+
+        if i == 1:
+            segments.append(np.linspace(points[0], p1_in, n_per_corner))
+        else:
+            segments.append(np.linspace(prev_out, p1_in, n_per_corner))
+        segments.append(bezier)
+        prev_out = p1_out
+
+    segments.append(np.linspace(prev_out, points[-1], n_per_corner))
+    return np.vstack(segments)
+
+
 
 class CPTrajectory:
-    def __init__(self, poseVec, resolution, ikObj, ikineNodeList, context, refLength):
+    def __init__(self, poseVec, resolution, ikObj, ikineNodeList, context, refLength, method="spline"): 
         self.lengths = []
         self.times = np.linspace(0, 1, resolution)
-        
-        # Positionen und Richtungsvektoren extrahieren
+        self.t_total = 20 
         points = np.array([pos for pos, angle in poseVec])
         angles_rad = np.array([angle for pos, angle in poseVec])
-        
-        # Tangenten als Einheitsvektoren
-        tangents = np.column_stack((np.cos(angles_rad), np.sin(angles_rad)))
-                
-        # Hermite-spline in die punkte legen
-        t_stuetz = np.linspace(0, 1, len(poseVec))
-        spline_x = CubicHermiteSpline(t_stuetz, points[:, 0], tangents[:, 0])
-        spline_y = CubicHermiteSpline(t_stuetz, points[:, 1], tangents[:, 1])
-        spline_angle = CubicHermiteSpline(t_stuetz, angles_rad, np.zeros_like(angles_rad))
-        
         absPoints = relativeToAbsolutePoints(points)
-        plotTrajAufgabenraum(spline_x, spline_y, points=absPoints)
+
+        if method == "linear":
+            segments = [
+                np.linspace(absPoints[i], absPoints[i + 1], resolution // (len(absPoints) - 1), endpoint=False)
+                for i in range(len(absPoints) - 1)
+            ]
+            traj = np.vstack(segments + [absPoints[-1][None]])
+        elif method == "spline":
+            tck, _ = splprep(absPoints.T, s=1)
+            t_vals = np.linspace(0, 1, resolution)
+            traj = np.array(splev(t_vals, tck)).T
         
-        # spline an resolution Punkten interpolieren und IK berechnen
-        for t in self.times:
-            pos = [spline_x(t), spline_y(t)]
-            angle = spline_angle(t)
+            # Winkelberechnung
+            t_stuetz = np.linspace(0, 1, len(angles_rad))
+            angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
+            angles = angle_spline(t_vals)
+            
+            angles = np.zeros(len(t_vals))
+        elif method in ("bezier2", "bezier3", "bezier5"):
+            degree = {"bezier2": 2, "bezier3": 3, "bezier5": 5}[method]
+            traj_full = corner_smoothed_bezier_curve(absPoints, radius=0.5, degree=degree)
+            indices = np.linspace(0, len(traj_full)-1, resolution).astype(int)
+            traj = traj_full[indices]
+            diffs = np.gradient(traj, axis=0)
+            angles = np.arctan2(diffs[:, 1], diffs[:, 0])
+        else:
+            raise ValueError(f"Unbekannte Methode: {method}")
 
-            # Zielkoordinaten für alle TCPs berechnen
+        plotTrajAufgabenraum(traj, points=absPoints)
+
+        traj_diffs = np.vstack((traj[0], np.diff(traj, axis=0)))
+        for i in range(resolution):
+            pos = traj_diffs[i]
+            pos = absoluteToRelativePoints([pos])[0]
+            angle = angles[i]
             posVec = targetToNodeListCoords(pos, angle, context['TCPOffsets'])
-
-            # IK berechnen
             ikObj.InverseKinematicsRelative(None, np.array(posVec), ikineNodeList)
             actuatorLengths = np.array(ikObj.GetActuatorLength())
-            self.lengths.append(np.array((actuatorLengths - refLength) * 10000))
+            self.lengths.append((actuatorLengths - refLength) * 10000)
 
         self.lengths = np.array(self.lengths)
 
-            
-        
     def evaluate(self, t):
-        # Zeit clamping
         t_clamped = np.clip(t, 0, 1)
-        
-        # lineare Interpolation für gegebene Zeit t (zwischen zwei IK-Zuständen)
         idx_float = t_clamped * (len(self.times) - 1)
         idx_low = int(np.floor(idx_float))
         idx_high = min(idx_low + 1, len(self.times) - 1)
         alpha = idx_float - idx_low
-
         return (1 - alpha) * self.lengths[idx_low] + alpha * self.lengths[idx_high]
-        
+
         
         
         

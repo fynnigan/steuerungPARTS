@@ -110,11 +110,12 @@ def PreStepUserFunction2(mbs, t):
 
 
  
-    # config.simulation.massPoints2DIdealRevoluteJoint2D = True
+    config.simulation.massPoints2DIdealRevoluteJoint2D = True
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
         refLength = (config.lengths.L0) 
     else:
         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))  
+    config.simulation.massPoints2DIdealRevoluteJoint2D = False
     
  
     # refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
