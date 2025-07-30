@@ -78,37 +78,142 @@ class gripperStates(Enum):
     MOVE_OBJECT = auto()
     OPEN_GRIPPER = auto()
     RETRACT_GRIPPER = auto()
+    TEST_PTP = auto()
+    TEST_CP = auto()
+    
+    
+def targetToNodeListCoords(pos, angle, TCPOffsets):
+
+    # Rotationsmatrix
+    R = np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle),  np.cos(angle)]
+    ])
+    
+    # Rotierte Zielkoordinaten berechnen relativ zu hauptTCP
+    rotatedTargets = [pos + R @ offset for offset in TCPOffsets]
+
+    # neue Koordinaten relativ zu ihrer vorherigen Position
+    relativeTargetOffsets = np.array(rotatedTargets) - np.array(TCPOffsets)
+
+    # alle zielpunkte anfuegen
+    target = [pos[0], pos[1]]
+    for i in relativeTargetOffsets:
+        target.append(i[0])
+        target.append(i[1])
+        
+    return target
+
+
+def calcTrajPTP(currentLen, targetPose, context):
+    ikObj = context['ikObj']
+    ikineNodeList = context['ikineNodeList']
+    refLength = context['refLength']
+    vMax = context['vMax']
+    aMax = context['aMax']
+    
+    targetPos, targetAng = targetPose
+
+    posVec = targetToNodeListCoords(targetPos, targetAng, context['TCPOffsets'])
+    ikObj.InverseKinematicsRelative(None, np.array(posVec), ikineNodeList)
+    targetLen = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
+    
+    realLength = refLength + targetLen / 10000
+    if min(realLength) < 0.2285 or max(realLength) > 0.3295:
+        print(targetPos, ': liegt außerhalb des Konfigurationsraumes mit max:', max(realLength), 'und min: ', min(realLength))
+    
+    traj = tf.PTPTrajectory(currentLen, targetLen, vMax, aMax, sync=True)
+    return traj
+
+def calcTrajCP(currentLen, poseVec, context, method='spline'):
+    ikObj = context['ikObj']
+    ikineNodeList = context['ikineNodeList']
+    refLength = context['refLength']
+    # vMax = context['vMax']
+    # aMax = context['aMax']
+    
+    traj = tf.CPTrajectory(poseVec, 50, ikObj, ikineNodeList, context, refLength)
+    return traj
 
 
 def functionStateMachine(t, actorLengths, posObj, myState, context):
-    trajVec = context['trajectoryVector']
+    
+    currentLen = context['currentLen']
+    tprev = context['tprev']
     
     # FSM Logik
     match myState:
         case gripperStates.IDLE:
             print("IDLE")
             myState = gripperStates.APPROACH_OBJECT
+        case gripperStates.TEST_PTP:
+            if 'trajPTPTest' not in context:
+                targetPose = ([0.229, 0.1], 0)
+                traj = calcTrajPTP(currentLen, targetPose, context)
+                
+                context['trajPTPTest'] = traj
+                context['tLocal'] = 0
+            else:
+                traj = context['trajPTPTest']
+                
+            tTraj = traj.t_total
+            u1 = traj.evaluate(tprev)
+            u2 = traj.evaluate(t)
+            
+            if t+1 > tTraj:
+                sys.exit('test durchgeführt')
+                
+        case gripperStates.TEST_CP:
+            if 'trajCPTest' not in context:
+                poseVec = [
+                    ([0, 0], 0),
+                    ([0.229, 0], 0),
+                    ([0, 0.229], 0),    
+                    ([-0.229*2, 0], 0),    
+                    ([0, 0.229], 0)    
+                    ([0.229, 0], 0),    
+                ]
+                # methods: 'spline', 'linear, 'bezier2', 'bezier3', 'bezier5'
+                traj = calcTrajCP(currentLen, poseVec, context, method='bezier3')
+                
+                context['trajCPTest'] = traj
+                context['tLocal'] = 0
+            else:
+                traj = context['trajCPTest']
+            
+            tTraj = traj.t_total
+            u1 = traj.evaluate(tprev)
+            u2 = traj.evaluate(t)
+            
+            if t+1 > tTraj:
+                sys.exit('test durchgeführt')
+        
     
         case gripperStates.APPROACH_OBJECT:
-            traj = trajVec[0]
+            
+            if 'trajApproach' not in context:
+                targetPose = ([0.229, 0.1], 0)
+                traj = calcTrajPTP(currentLen, targetPose, context)
+                
+                # plot_trajectory(traj, context['refLength'])
+                
+                context['trajApproach'] = traj
+                context['tLocal'] = 0
+            else:
+                traj = context['trajApproach']
+                
             tTraj = traj.t_total
             
-            u1 = traj.evaluate(t-1)
+            u1 = traj.evaluate(tprev)
             u2 = traj.evaluate(t)
             
             print("APPROACH_OBJECT")
             
             if t+1 > tTraj:
                 myState = gripperStates.POSITION_GRIPPER
-    
+            
         case gripperStates.POSITION_GRIPPER:
-            traj = trajVec[1]
-            tTraj = traj.t_total
             
-            t = int(t - np.floor(trajVec[0].t_total))
-            
-            u1 = traj.evaluate(t-1)
-            u2 = traj.evaluate(t)
             
             print("POSITION_GRIPPER")
                         
@@ -134,7 +239,7 @@ def functionStateMachine(t, actorLengths, posObj, myState, context):
     context["state"] = myState
 
     if u1 is None or not isinstance(u1, (list, np.ndarray)) or len(u1) == 0:
-        print('t > tTraj  erroooorrr')
+        print('t > tTraj: error')
         return 0
     else:
         return u1, u2
@@ -149,15 +254,13 @@ def PreStepUserFunction(mbs, t):
     
     SensorValuesTime = context['SensorValuesTime']
     adeIDs = context['adeIDs']
-    sortedActorStrokesList = context['sortedActorStrokesList']
-    cnt = context['cnt']
     ADE = context['ADE']
     mbsV = context['mbsV']
-    state = context['state']
     numberOfLoadSteps = context['numberOfLoadSteps']
-    ikObj = context['ikObj']
-    trajVec = context['trajectoryVector']
+    # state = context['state']
 
+    # for testign
+    state = gripperStates.TEST_CP
 
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
         refLength = (config.lengths.L0) 
@@ -172,17 +275,6 @@ def PreStepUserFunction(mbs, t):
     
     SensorValuesTime[line][t]=SensorValues
     
-    # get current actuator lengths
-    # l0 = np.array(ikObj.GetActuatorLength())
-    
-    # lengths = functionStateMachine(t*numberOfLoadSteps*2, 0, 0, state, context)
-    # relLengths = functionStateMachine(1, l0, 0, state, context)
-    # absLengths = [rel + refLength for rel in relLengths]
-    
-    
-    # traj = trajVec[0]
-    # u1Vec = traj.evaluate(t*numberOfLoadSteps-1)
-    # u2Vec = traj.evaluate(t*numberOfLoadSteps)
 
     # get current and next displacements, scale t to real time
     u1Vec, u2Vec = functionStateMachine(t*numberOfLoadSteps, 0, 0, state, context)
@@ -195,27 +287,13 @@ def PreStepUserFunction(mbs, t):
         driveLen = UserFunctionDriveRefLen1(t, u1, u2)
         mbs.SetObjectParameter(oSpringDamper,'referenceLength',driveLen+refLength)  
         
-    
-    # if config.simulation.useInverseKinematic:
-    #     for i in range(len(mbs.variables['springDamperDriveObjects'])):
-
-    #         u1=sortedActorStrokesList[cnt][i]/10000 
-    #         u2=sortedActorStrokesList[cnt+1][i]/10000
-            
-    #         # if i == 11 and t == 0.0332: 
-    #         #     print('cnt={}: move actor {} from {} to {} '.format(cnt, i, u1, u2), 'correction' * mbs.variables['correction'])
-    #         oSpringDamper = mbs.variables['springDamperDriveObjects'][i]
-    #         driveLen = UserFunctionDriveRefLen1(t, u1,u2)
-            
-    #         # mbs.SetObjectParameter(oSpringDamper,'referenceLength',driveLen+refLength)  
-    #         mbs.SetObjectParameter(oSpringDamper,'referenceLength',driveLen+refLength)#LrefExt[i])
-        
         
     mbsV.SendRedrawSignal()
     print('t:', t)
     
     context.update({
         'SensorValuesTime': SensorValuesTime,
+        'tprev': t*numberOfLoadSteps,
     })
     
     mbs.variables.update({
@@ -604,27 +682,38 @@ def initializeSimulation(context):
     
     context.update({
         'simulationSettings': simulationSettings,
-        
+        'SC': SC,
     })
 
 
-def plot_trajectory(traj, every_n=5, label_prefix="Actuator"):
+def plot_trajectory(traj, refLength, every_n=1, label_prefix="Actuator"):
     time_steps = 100  # feinere Auflösung
     t_vals = np.linspace(0, traj.t_total, time_steps)
-    lengths = np.array([traj.evaluate(t) for t in t_vals])
+    lengths = np.array([refLength + traj.evaluate(t)/10000 for t in t_vals])
 
     num_actuators = lengths.shape[1]
 
     plt.figure(figsize=(10, 6))
     for i in range(0, num_actuators, every_n):
-        plt.plot(t_vals, lengths[:, i], label=f"{label_prefix} {i}")
+        if i == 0:
+            plt.plot(t_vals, lengths[:, i], linewidth=0.3, label='Akuatoren', color='blue')
+        else:
+            plt.plot(t_vals, lengths[:, i], linewidth=0.3, color='blue')
+            
+    # Fixe y-Achse
+    plt.ylim(0.22, 0.36)
     
-    plt.title(f"Trajektorie ausgewählter Aktuatoren (jede {every_n}. Kurve)")
+    # Min-/Max-Hub als gestrichelte Linien
+    plt.axhline(0.229, color='gray', linestyle='--', linewidth=1, label='Min-Hub (0.229 m)')
+    plt.axhline(0.329, color='gray', linestyle='--', linewidth=1, label='Max-Hub (0.329 m)')
+
+    
+    plt.title(f"Zeitliche Längenänderungen der Aktuatoren")
     plt.xlabel("Zeit [s]")
-    plt.ylabel("Länge [10 µm]")  # d.h. z. B. 100 = 1 mm
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+    plt.ylabel("Länge [m]")
+    plt.grid(True, alpha=0.5)
+    plt.legend(loc='upper right')
+    # plt.tight_layout()
     plt.show()
 
 
@@ -681,7 +770,7 @@ class gripperFSM:
         config.simulation.frameList = True
         config.simulation.showJointAxes=False
         config.simulation.animation=True
-        config.simulation.showLabeling = True #shows nodeNumbers, ID and sideNumbers, simulationTime
+        config.simulation.showLabeling = False #shows nodeNumbers, ID and sideNumbers, simulationTime
         
         
         context.update({
@@ -696,6 +785,7 @@ class gripperFSM:
         
         usePTP = False
         useSyncPTP = True
+        useCPspline = False
         
         
         # +++++++++++++++++++++++++++++++++++++++
@@ -932,6 +1022,7 @@ class gripperFSM:
                     })
         
                     ikObj, mbs2 = createKinematicModel(mbs, mbs2, context)
+                    # ikObj2, mbs4 = createKinematicModel(mbs, mbs2, context)
                     
                     ########################################################
                     
@@ -947,77 +1038,12 @@ class gripperFSM:
                         refLength = (config.lengths.L0) 
                     else:
                         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
-                    
-                    
-                    # # map actuator length to SurrogateModel
-                    # actorList = [((np.array(l1)-refLength)*10000).tolist()]
-                    # # actorList = [(np.round(l1, 5)).tolist()]
-                    # sortedActorStrokesList += actorList      
-                    
-                    # mbs.SetPreStepUserFunction(PreStepUserFunction)
-        
-                    
-                    # set start and end point
-                    # start = np.array([0, 0, 0, 0, 0, 0])
-                    # target = np.array([0.5, 0, 0.5, 0, 0.5, 0])
-                    # start = np.array([0, 0])
-                    # target = np.array([0.5, 0])
-                    
-                    
-                    # targetCoord = np.array([0.3, 0.1])
-                    # targetAngle = -np.pi/16 # in bogenmass
-                    
-                    # bricht grad noch das program
-                    # if context['CoordinateSystemTCP']:
-                    #     mbs.AddObject(ObjectGround(
-                    #         visualization=VObjectGround(graphicsData=[
-                    #             GraphicsDataBasis(
-                    #                 point=[targetCoord[0], targetCoord[1], 0], 
-                    #                 rotationMatrix=RotationMatrixZ(targetAngle), 
-                    #                 length=1
-                    #             )
-                    #         ])
-                    #     ))
-                    
-                    def targetToNodeListCoords(pos, angle, TCPOffsets):
-                    
-                        # Rotationsmatrix
-                        R = np.array([
-                            [np.cos(angle), -np.sin(angle)],
-                            [np.sin(angle),  np.cos(angle)]
-                        ])
-                        
-                        # Rotierte Zielkoordinaten berechnen relativ zu hauptTCP
-                        rotatedTargets = [pos + R @ offset for offset in TCPOffsets]
-        
-                        # neue Koordinaten relativ zu ihrer vorherigen Position
-                        relativeTargetOffsets = np.array(rotatedTargets) - np.array(TCPOffsets)
-
-                        # alle zielpunkte anfuegen
-                        target = [pos[0], pos[1]]
-                        for i in relativeTargetOffsets:
-                            target.append(i[0])
-                            target.append(i[1])
-                            
-                        return target
-    
+   
                     
                     # set max velocity and acceleration
-                    vmax = 20
-                    amax = 10
-            
-                    
-                    # # calculate actuator Lengths for start position
-                    # ikObj.InverseKinematicsRelative(None, np.array(start), ikineNodeList)
-                    # startLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
-                    # print('ikine start calculated')
-                    
-                    
-                    # # calculate actuator Lengths for target position
-                    # ikObj.InverseKinematicsRelative(None, np.array(target), ikineNodeList)
-                    # targetLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
-                    # print('ikine target calculated')
-                    
+                    context['vMax'] = 20
+                    context['aMax'] = 10
+                  
                     
                     # # calculate trajectory for every actuator
                     # if usePTP:
@@ -1026,7 +1052,7 @@ class gripperFSM:
                     #     traj = tf.syncPTPTrajectory(startLengths, targetLengths, vmax, amax)
                     
                     # object coords
-                    objPos=np.array([0.229, 0.8])
+                    # objPos=np.array([0.229, 0.8])
                     # call object spawning function here
                     
                     # vector for node positition for ikine calculations
@@ -1045,57 +1071,78 @@ class gripperFSM:
                     #     ([0, 0.4], 0)    
                     # ]
                     
-                    poseVec = [
-                         ([0.3, 0], 0),   
-                         ([0.2, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0),   
-                         ([0.1, 0], 0)   
-                    ]
+                    # poseVec = [
+                    #     ([0, 0], 0),
+                    #     ([1, 1.5], 0),
+                    #     ([3, 0.5], 0),
+                    #     ([2, 2.5], 0)
+                    # ]
+                    
+                    # maximum nach rechts mit winkel=0: 1
+                    # maximum nach links mit winkel=0: 0.8
+                    # maximum nach oben mit winkel=0: 0.4                  
+                    # poseVec = [
+                    #      ([0, 0.3], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    #      ([0, 0.1], 0),    
+                    # ]
+                    # poseVec = [
+                    #     ([0.229, 0], np.pi/8)    
+                    # ]
                 
                     # store node out of nodeList to use for ikine calculation                    
                     ikineNodeList = [i for i in range(len(nodeList))]
                     
                     # get actor lengths for start position
-                    start = np.array([0] * len(ikineNodeList) * 2)
-                    ikObj.InverseKinematicsRelative(None, start, ikineNodeList)
+                    # start = np.array([0] * len(ikineNodeList) * 2)
+                    # ikObj.InverseKinematicsRelative(None, start, ikineNodeList)
                     prevActorLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
+                    context['currentLen'] = prevActorLengths
+                    
+                    
+                    # pose = targetToNodeListCoords([0.229, 0.229], -np.pi/16, context['TCPOffsets'])
+                    # ikObj2.InverseKinematicsRelative(None, pose, ikineNodeList)
                     
                     # vector for all trajectories
                     trajVec = []
                     
-                    # calculate all trajectories
-                    for pos, angle in poseVec:
-                        posVec = targetToNodeListCoords(pos, angle, context['TCPOffsets'])
-                        ikObj.InverseKinematicsRelative(None, np.array(posVec), ikineNodeList)
-                        actorLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)
-                        trajVec.append(tf.PTPTrajectory(prevActorLengths, actorLengths, vmax, amax, sync=False))
-                        prevActorLengths = actorLengths
-                    
-                    # trajVec.append(tf.CPTrajectory(poseVec, 20, ikObj, ikineNodeList, context, refLength))
+                    # if useSyncPTP:
+                    #     # calculate all trajectories
+                    #     for pos, angle in poseVec:
+                    #         posVec = targetToNodeListCoords(pos, angle, context['TCPOffsets'])
+                    #         ikObj.InverseKinematicsRelative(None, np.array(posVec), ikineNodeList)
+                    #         actorLengths = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)#
+                    #         realLength = refLength + actorLengths / 10000
+                    #         if min(realLength) < 0.2285 or max(realLength) > 0.3295:
+                    #             print(pos, ': liegt außerhalb des Konfigurationsraumes mit max:', max(realLength), 'und min: ', min(realLength))
+                    #             break
+                    #         trajVec.append(tf.PTPTrajectory(prevActorLengths, actorLengths, vmax, amax, sync=True))
+                    #         prevActorLengths = actorLengths
+                    # elif useCPspline:
+                    #     trajVec.append(tf.CPTrajectory(poseVec, 20, ikObj, ikineNodeList, context, refLength, method='linear'))
+                    # else:
+                    #     print('no traj type selected')
+                        
                     
                     # time all trajactories need in total
-                    tTotal = sum(traj.t_total for traj in trajVec)
+                    # tTotal = sum(traj.t_total for traj in trajVec)
                     
-                    plot_trajectory(trajVec[0], every_n=2)
+                    # plot_trajectory(trajVec[0], refLength)
                     
                     
-                    dt = 1
-                    numberOfLoadSteps = int(np.ceil(tTotal) / dt)
+                    # dt = 1
+                    # numberOfLoadSteps = int(np.ceil(tTotal) / dt)
+                    numberOfLoadSteps = 25
                     simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
                     simulationSettings.staticSolver.loadStepGeometric = False
                     print('numberOfLoadSteps:', numberOfLoadSteps)
                     
-
-                    print('traj calculated')
-                    
-
                     context.update({
                         'refLength': refLength,
                         'sortedActorStrokesList': sortedActorStrokesList,
@@ -1111,26 +1158,14 @@ class gripperFSM:
                         'counterSensorPlot': counterSensorPlot,
                         'trajectoryVector': trajVec,
                         'numberOfLoadSteps': numberOfLoadSteps,
-                        'tTotal': tTotal,
+                        # 'tTotal': tTotal,
                         'ikObj': ikObj,
+                        'ikineNodeList': ikineNodeList,
+                        'tprev': 0,
                     })
                     
                     mbs.variables.update({'context': context})
-                    
-                    # runTrajectorySimulation(traj, context)
-                    
-                    print('traj time:', tTotal)
-                    
-                    # get actuator lenghts for current time step
-                    # l1 = traj.evaluate(t_sim)
-                    # for i in range(traj.numActuators):
-                    #     plt.scatter(t_sim, l1[i], s=10, color=colors[i % len(colors)], label=f"Aktuator {i+1}")
                 
-                    # l1 = ikObj.GetActuatorLength()
-                        
-                    # actorList = [np.array(l1).tolist()]
-                    
-                    # sortedActorStrokesList += actorList 
 
                     mbs.variables['line']=cnt+1
                     SensorValuesTime[cnt+1]={} 
