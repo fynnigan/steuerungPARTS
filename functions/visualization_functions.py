@@ -72,7 +72,7 @@ def PlotSensorValues(SensorValues,linecolor = 'black',linestyle='-',markercolor 
         plt.grid(True)
         plt.axis('equal')            
 
-def PlotSensorValuePoint(SensorValues,ID,Point,linecolor = 'black',lineStyle='-',markercolor = 'red',marker='', figureName = '',label='',combinePlots=False,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=True,everyTwoLabels=False,markerSize=100,linewidths=2):
+def PlotSensorValuePoint(SensorValues,ID,Point,linecolor = 'black',lineStyle='-',markercolor = 'red',marker='', figureName = '',label='',combinePlots=False,plotLine=True,plotMarker=True,time=False,markerLabel=''):
     if combinePlots:
         plt.figure(figureName)
     else:
@@ -83,20 +83,11 @@ def PlotSensorValuePoint(SensorValues,ID,Point,linecolor = 'black',lineStyle='-'
     for line in SensorValues:
         A[i]=SensorValues[line][ID][Point]
         if plotMarker:
-            if printMarkerLabel: 
-                if not time:
-                    if not everyTwoLabels:
-                        txt=line
-                    else:
-                        if int(line) % 4 == 0:
-                            txt=line
-                        else:
-                            txt=''
-                else:
-                    txt=markerLabel
+            if not time:
+                txt=line
             else:
-                txt=''
-            plt.scatter(A[i,0],A[i,1],color=markercolor, marker=marker, label='_nolegend_',s=markerSize,linewidths=linewidths)
+                txt=markerLabel
+            plt.scatter(A[i,0],A[i,1],color=markercolor, marker=marker, label='_nolegend_')
             plt.text(A[i,0]-0.005,A[i,1]+0.005,str(txt),fontsize=12)
         i += 1
         

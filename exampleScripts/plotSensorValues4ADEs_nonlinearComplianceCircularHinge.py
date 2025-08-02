@@ -69,8 +69,6 @@ from functions.control_functions import *
 
 
 #%% load sensor data
-# SensorValuesIdeal = pickle.load( open('output//SensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValuesIdealImport = pickle.load( open('output//SensorValuesTime.pickle',  'rb') ) # loading sensor values
 SensorValuesIdeal = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesCircularHinge.pickle',  'rb') ) # loading sensor values
 SensorValuesIdealImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesTimeCircularHinge.pickle',  'rb') ) # loading sensor values
 # SensorValuesIdeal = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
@@ -97,13 +95,6 @@ SensorValuesIdealImport = pickle.load( open('output/nonlinearComplianceMatrixSta
 SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesNN.pickle',  'rb') ) # loading sensor values
 SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
 
-# SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesLinear.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesTimeLinear.pickle',  'rb') ) # loading sensor values
-
-# SensorValues4ATCRBSD = pickle.load( open('output/SensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCRBSDImport = pickle.load( open('output/SensorValuesTime.pickle',  'rb') ) # loading sensor values
-
-
 # SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
 # SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
 
@@ -121,14 +112,8 @@ with open('data//experiments//4ADEs#//uncorrected//MeshPointsVicon.txt') as f:
             for k in range(3):
                 SensorValues4ATCMeasurement[i][int(line[j])][k] = np.matrix(line[j+k*2+1:j+k*2+3],dtype=float)
 
-# SensorValues4ATCMeasurement = pickle.load( open('output/SensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCMeasurementImport = pickle.load( open('output/SensorValuesTime.pickle',  'rb') ) # loading sensor values
-
 SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesNN.pickle',  'rb') ) # loading sensor values
 SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
-
-# SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesLinear.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/SensorValuesTimeLinear.pickle',  'rb') ) # loading sensor values
 
 # SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
 # SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCircularHinge/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
