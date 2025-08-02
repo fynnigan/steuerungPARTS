@@ -67,8 +67,7 @@ plt.rc('legend', fontsize=fontSize)    # legend fontsize
 from functions import visualization_functions as vf
 from functions.control_functions import *
 
-SensorValuesIdealCircle = pickle.load( open('output/iKinGripper/SensorValues.pickle',  'rb') ) # loading sensor values
-SensorValuesIdealImportCircle = pickle.load( open('output/iKinGripper/SensorValuesTime.pickle',  'rb') ) # loading sensor values
+
 #%% load sensor data
 # SensorValuesIdeal = pickle.load( open('output/nonlinearComplianceGripper/SensorValuesIdeal.pickle',  'rb') ) # loading sensor values
 # SensorValuesIdealImport = pickle.load( open('output/nonlinearComplianceGripper/SensorValuesTimeIdeal.pickle',  'rb') ) # loading sensor values
@@ -110,7 +109,7 @@ import matplotlib.ticker as ticker
 #                 SensorValues4ATCMeasurement[i][int(line[j])][k] = np.matrix(line[j+k*2+1:j+k*2+3],dtype=float)
 
 SensorValues4ATCMeasurement = pickle.load( open('output/iKinGripper/SensorValuesIdeal.pickle',  'rb') ) # loading sensor values
-SensorValues4ATCMeasurementTime = pickle.load( open('output/iKinGripper/SensorValuesTimeIdeal.pickle',  'rb') ) # loading sensor values
+SensorValuesIdealImport = pickle.load( open('output/iKinGripper/SensorValuesTimeIdeal.pickle',  'rb') ) # loading sensor values
 # meshPointsVicon = {}
 # with open('data//experiments//4ADEs#//uncorrected//MeshPointsVicon.txt') as f:
 #     lines = f.readlines()
@@ -126,7 +125,7 @@ SensorValues4ATCMeasurementTime = pickle.load( open('output/iKinGripper/SensorVa
 
 
 
-# ID=[6]
+
 ID=[6,9]
 Point=[2]
 
@@ -261,16 +260,14 @@ figName='Trajectories'
 Fig3=plt.figure(figName)
 ax=Fig3.gca() # get current axes
 
-# vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCIdealTime,adeMoveList, colorlineListSelected[0], lineStyleSelected[0], markerstyleListSelected[0],figName,label='ideal',printMarkerLabel=False,printLegend=False)
+vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCIdealTime,adeMoveList, colorlineListSelected[0], lineStyleSelected[0], markerstyleListSelected[0],figName,label='ideal',printMarkerLabel=False,printLegend=False)
 # vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCRBSDTime,adeMoveList,  colorlineListSelected[1], lineStyleSelected[1], markerstyleListSelected[1],figName,label='model',printMarkerLabel=False,printLegend=False)
 
 for i in ID:
     for j in Point:
-        vf.PlotSensorValuePoint(SensorValuesIdealCircle,i,j,linecolor = 'black',lineStyle='--',markercolor = 'black',marker='', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=False,time=False,markerLabel='',printMarkerLabel=False,everyTwoLabels=False,markerSize=100,linewidths=2)
-        vf.PlotSensorValuePoint(SensorValues4ATCMeasurement,i,j,linecolor = 'black',lineStyle='',markercolor = 'black',marker='', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=False,everyTwoLabels=False,markerSize=100,linewidths=2)
-        vf.PlotSensorValuePoint(SensorValues4ATCRBSD,i,j,linecolor = colorlineListSelected[1],lineStyle='',markercolor = 'red' ,marker='x', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=False,everyTwoLabels=False,markerSize=100,linewidths=2)
-        vf.PlotSensorValuePoint(SensorValuesIdeal,i,j,linecolor = 'red',lineStyle='',markercolor = 'blue',marker='x', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=True,everyTwoLabels=False,markerSize=100,linewidths=1)
- 
+        vf.PlotSensorValuePoint(SensorValues4ATCMeasurement,i,j,linecolor = 'red',lineStyle='-',markercolor = 'red',marker='o', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='')
+        vf.PlotSensorValuePoint(SensorValuesIdeal,i,j,linecolor = 'red',lineStyle='-',markercolor = 'red',marker='o', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='')
+        vf.PlotSensorValuePoint(SensorValues4ATCRBSD,i,j,linecolor = colorlineListSelected[1],lineStyle=lineStyleSelected[1],markercolor = colorlineListSelected[1] ,marker=markerstyleListSelected[1], figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='')
         # offsetOfLine=vf.calculateOffset(SensorValuesIdeal,SensorValues4ATCMeasurement,0,i,j)
         # vf.substractOffset(SensorValues4ATCMeasurement,i,j,offsetOfLine=offsetOfLine,linecolor = 'orange',markercolor = 'orange', figureName = figName,label='',marker='x',combinePlots=True)
 
@@ -287,78 +284,19 @@ lineStep=5 #first value of line 1
 vf.plotMesh(SensorValues4ATCIdealTime,lineStep,plotFirstIndex=False,figureName=figName,labelATC=False,linestyle='-.')
 
 
-# plt.legend()
+plt.legend()
 plt.grid()
 plt.axis('equal')
 ax.grid(True, 'major', 'both')
 ax.xaxis.set_major_locator(ticker.MaxNLocator(10)) 
 ax.yaxis.set_major_locator(ticker.MaxNLocator(10)) 
-plt.xlim(-0.35, 0.6)
+plt.xlim(-0.5, 0.6)
 ax.set_ylabel(r'nodes y in m')
 ax.set_xlabel(r'nodes x in m')
-plt.tight_layout()
 plt.show()
 
+    
 
-saveFigure=True
-if saveFigure:
-    plt.savefig('output/iKinPlots/TrajectoriesGripper.pdf',format='pdf')
-    plt.savefig('output/iKinPlots/TrajectoriesGripper.svg', format='svg')
-
-
-
-
-
-
-figName='enlargedRepTraj'
-Fig3=plt.figure(figName)
-ax=Fig3.gca() # get current axes
-#enlarged representation
-# vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCIdealTime,adeMoveList, colorlineListSelected[0], lineStyleSelected[0], markerstyleListSelected[0],figName,label='ideal',printMarkerLabel=False,printLegend=False)
-# vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCRBSDTime,adeMoveList,  colorlineListSelected[1], lineStyleSelected[1], markerstyleListSelected[1],figName,label='model',printMarkerLabel=False,printLegend=False)
-
-for i in ID:
-    for j in Point:
-        vf.PlotSensorValuePoint(SensorValuesIdealCircle,i,j,linecolor = 'black',lineStyle='--',markercolor = 'black',marker='', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=False,time=False,markerLabel='',printMarkerLabel=False)
-        vf.PlotSensorValuePoint(SensorValues4ATCMeasurement,i,j,linecolor = 'black',lineStyle='',markercolor = 'black',marker='', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=False)
-        vf.PlotSensorValuePoint(SensorValues4ATCRBSD,i,j,linecolor = colorlineListSelected[1],lineStyle='',markercolor = 'red' ,marker='o', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=False)
-        vf.PlotSensorValuePoint(SensorValuesIdeal,i,j,linecolor = 'red',lineStyle='',markercolor = 'blue',marker='x', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',printMarkerLabel=True)
-        
-        # offsetOfLine=vf.calculateOffset(SensorValuesIdeal,SensorValues4ATCMeasurement,0,i,j)
-        # vf.substractOffset(SensorValues4ATCMeasurement,i,j,offsetOfLine=offsetOfLine,linecolor = 'orange',markercolor = 'orange', figureName = figName,label='',marker='x',combinePlots=True)
-
-
-
-#%% figure1 mesh
-lineStep=0 #first value of line 0
-vf.plotMesh(SensorValues4ATCIdealTime,lineStep,plotFirstIndex=True,figureName=figName,labelATC=True,linestyle='-')
-
-lineStep=0 #first value of line 0
-vf.plotMesh(SensorValues4ATCIdealTime,lineStep,plotFirstIndex=False,figureName=figName,labelATC=False,linestyle='-')
-
-lineStep=5 #first value of line 1
-vf.plotMesh(SensorValues4ATCIdealTime,lineStep,plotFirstIndex=False,figureName=figName,labelATC=False,linestyle='-.')
-
-
-# plt.legend()
-plt.grid()
-plt.axis('equal')
-ax.grid(True, 'major', 'both')
-plt.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.12)
-ax.xaxis.set_major_locator(ticker.MaxNLocator(5)) 
-ax.yaxis.set_major_locator(ticker.MaxNLocator(5)) 
-plt.xlim(-0.28, 0.)
-plt.ylim(0.55, 0.78)
-ax.set_ylabel(r'nodes y in m')
-ax.set_xlabel(r'nodes x in m')
-plt.tight_layout()
-plt.show()
-
-
-saveFigure=True
-if saveFigure:
-    plt.savefig('output/iKinPlots/enlargedRepTraj.pdf',format='pdf')
-    plt.savefig('output/iKinPlots/enlargedRepTraj.svg', format='svg')
 # #%% figure2 movement over time
 # figName='movementOverTime'
 # Fig4=plt.figure(figName)
@@ -384,7 +322,7 @@ if saveFigure:
 # ax.set_xlabel(r'time t in s')
 # plt.show()
 
-# del SensorValuesIdeal[0][1]
+
 
 
 #%% figure1 plot Trajectories
@@ -393,10 +331,10 @@ Fig3=plt.figure(figName)
 ax=Fig3.gca() # get current axes
 
 #%% figure3 plot and calculate offset/error
-[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValues4ATCRBSD,SensorValues4ATCMeasurement,figureName='error',combinePlots=True,label='without error correction',linecolor='red',marker='o')
+[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValues4ATCRBSD,SensorValues4ATCMeasurement,figureName='error',combinePlots=True,label='without correction',linecolor='blue',marker='o')
 print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
 
-[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValuesIdeal,SensorValues4ATCMeasurement,figureName='error',combinePlots=True,label='with error correction',linecolor='blue',marker='x')
+[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValuesIdeal,SensorValues4ATCMeasurement,figureName='error',combinePlots=True,label='with correction',linecolor='black',marker='x')
 print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
 
 # plt.grid()
@@ -407,11 +345,7 @@ ax.set_ylabel(r'point with max error in mm')
 # ax.yaxis.set_major_locator(ticker.MaxNLocator(10)) 
 plt.xlim(-0.5, 9.5)
 # plt.ylim(-0.001, 0.003)
-plt.tight_layout()
 
-if saveFigure:
-    plt.savefig('output/iKinPlots/errorGripper.pdf',format='pdf')
-    plt.savefig('output/iKinPlots/errorGripper.svg', format='svg')
 
 # #%% figure4 error boxPlot
 # for numberATCs in [6,8]:

@@ -219,10 +219,10 @@ def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
 
 
 class CPTrajectory:
-    def __init__(self, poseVec, resolution, ikObj, ikineNodeList, context, refLength, method="spline"): 
+    def __init__(self, poseVec, resolution, ikObj, ikineNodeList, TCPOffsets, refLength, method="spline"): 
         self.lengths = []
         self.times = np.linspace(0, 1, resolution)
-        self.t_total = 20 
+        self.t_total = resolution
         points = np.array([pos for pos, angle in poseVec])
         angles_rad = np.array([angle for pos, angle in poseVec])
         absPoints = relativeToAbsolutePoints(points)
@@ -261,10 +261,11 @@ class CPTrajectory:
             pos = traj_diffs[i]
             pos = absoluteToRelativePoints([pos])[0]
             angle = angles[i]
-            posVec = targetToNodeListCoords(pos, angle, context['TCPOffsets'])
-            ikObj.InverseKinematicsRelative(None, np.array(posVec), ikineNodeList)
+            posVec = targetToNodeListCoords(pos, angle, TCPOffsets)
+            ikObj.InverseKinematicsRelative(None, np.array(posVec))
             actuatorLengths = np.array(ikObj.GetActuatorLength())
-            self.lengths.append((actuatorLengths - refLength) * 10000)
+            # self.lengths.append((actuatorLengths - refLength) * 10000)
+            self.lengths.append(actuatorLengths)
 
         self.lengths = np.array(self.lengths)
 

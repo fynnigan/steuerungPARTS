@@ -20,12 +20,6 @@ import numpy as np
 import matplotlib
 import logging
 import cv2
-import os
-
-script_dir = os.path.dirname(__file__)
-output_dir = os.path.join(script_dir, 'output')
-solution_dir = os.path.join(script_dir, 'solution')
-
 
 class structure():
     pass
@@ -77,14 +71,14 @@ def init():
     lengths.dampingPrismaticJoints = 5e3
     
     #values for springs for connectors between two elements
-    lengths.stiffnessConnectors=6e3
+    lengths.stiffnessConnectors=6e3*1e5
     lengths.dampingConnectors=2e4
     
     lengths.stiffnessBoundary=4e6 #4e4
     lengths.dampingBoundary=3e3  
     
-    lengths.maxStroke = 0.100
-    lengths.minStroke = 0.0
+    lengths.maxStroke = 0.101
+    lengths.minStroke = -0.001
     
     #%%+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Webserver Config
@@ -142,8 +136,7 @@ def init():
     global data
     data = structure()
 
-    # data.ademoveListLocation =  'data/moveList/Fahrt014ADE.txt'   # Location of Save file Bsp.:['data\movelst\demo_ADE3.txt','data\movelst\save_4ADE_1Punkt_Fahrt2.txt','data\movelst\save_01.txt']
-    data.ademoveListLocation = os.path.join(script_dir, "data", "moveList", "Fahrt014ADE.txt")
+    data.ademoveListLocation =  'data\moveList\Fahrt014ADE.txt'   # Location of Save file Bsp.:['data\movelst\demo_ADE3.txt','data\movelst\save_4ADE_1Punkt_Fahrt2.txt','data\movelst\save_01.txt']
 
     #%%+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++s
     # Camera config
@@ -161,9 +154,8 @@ def init():
     # 'data//experiments//walker//Image//'
     # 'data//experiments//rollingGait//Image//'
 
-    # camera.imageFolder = 'data/experiments/rollingGait/Image/'  # Folder where Images are Read from if Camera isnt Available
-    camera.imageFolder = os.path.join(script_dir, 'data', 'experiments', 'rollingGait', 'Image')
-    
+    camera.imageFolder = 'data//experiments//rollingGait//Image//'  # Folder where Images are Read from if Camera isnt Available
+
 
     camera.ID = 0
 
@@ -219,8 +211,8 @@ def init():
     #measurement.xCord = 1080     # x Distance of the Coordinate Markers in mm
     #measurement.yCord = 520      # y Distance of the Coordinate Markers in mm
 
-    # measurement.calibrationFolder = 'data/calibrationData/'#'data/calibration3DNear/'#'data/allCalibrationData/'#'data/calibration3DNear/'#
-    measurement.calibrationFolder = os.path.join(script_dir, 'data', 'calibrationData')
+    measurement.calibrationFolder = 'data/calibrationData/'#'data/calibration3DNear/'#'data/allCalibrationData/'#'data/calibration3DNear/'#
+
     
     # measurement.ret = np.genfromtxt(measurement.calibrationFolder+'ret.txt',delimiter = ',',dtype = float)  #Calibration Data
     # measurement.mtx = np.genfromtxt(measurement.calibrationFolder+'mtx.txt',delimiter = ',',dtype = float)
@@ -276,13 +268,13 @@ def init():
     
     
     
-    # ursprünglich die nächsten 3 falsch
-    #Options for six-bar linkages, if all False RevoluteJoint2D are used for the six-bar linkages
-    simulation.simplifiedLinksIdealRevoluteJoint2D = True #simplified model using only revoluteJoints at edges
-    simulation.massPoints2DIdealRevoluteJoint2D = True
-    simulation.simplifiedLinksIdealCartesianSpringDamper = True
     
-    simulation.useCompliantJoints=False          #False for ideal
+    #Options for six-bar linkages, if all False RevoluteJoint2D are used for the six-bar linkages
+    simulation.simplifiedLinksIdealRevoluteJoint2D = False #simplified model using only revoluteJoints at edges
+    simulation.massPoints2DIdealRevoluteJoint2D = False
+    simulation.simplifiedLinksIdealCartesianSpringDamper = False
+    
+    simulation.useCompliantJoints=True          #False for ideal
     simulation.numberOfElementsBeam=8
     simulation.numberOfElements=16
 
@@ -291,13 +283,13 @@ def init():
     simulation.cartesianSpringDamperActive = False #setTrue ASME2020CI
     simulation.connectorRigidBodySpringDamper = False 
     
-    simulation.rigidBodySpringDamperNonlinearStiffness = True #use nonlinear compliance matrix then choose circularHinge and crossSpringPivots
+    simulation.rigidBodySpringDamperNonlinearStiffness = False #use nonlinear compliance matrix then choose circularHinge and crossSpringPivots
     simulation.rigidBodySpringDamperNonlinearStiffnessCircularHinge=False
     simulation.rigidBodySpringDamperNonlinearStiffnessCrossSpringPivot=False
     
-    simulation.rigidBodySpringDamperNeuralNetworkCircularHinge=True
+    simulation.rigidBodySpringDamperNeuralNetworkCircularHinge=False
     simulation.rigidBodySpringDamperNeuralNetworkCrossSprings=False
-    simulation.neuralnetworkJIT=True
+    
     
     #friction force (norm); acts against velocity
     simulation.zeroZoneFriction = 1e-3 #zero-zone for velocity in friction
@@ -308,25 +300,17 @@ def init():
     #Options for Solver
     simulation.SolveDynamic = False #set False to SolveStatic
     simulation.endTime = 10 #used only if interactive marker True
-    simulation.nrSteps = int(1e2)
+    simulation.nrSteps = int(1e3) 
 
 
 
     #Options for output
     simulation.saveSensorValues = True
-    # simulation.sensorValuesFile = 'output/SensorValues.pickle'
-    # simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
-    # simulation.sensorValuesFile2 = 'output/SensorValues2.pickle'
-    # simulation.sensorValuesTimeFile2 = 'output/SensorValuesTime2.pickle'
-    
-    simulation.sensorValuesFile = os.path.join(output_dir, 'SensorValues.pickle')
-    simulation.sensorValuesTimeFile = os.path.join(output_dir, 'SensorValuesTime.pickle')
-    simulation.sensorValuesFile2 = os.path.join(output_dir, 'SensorValues2.pickle')
-    simulation.sensorValuesTimeFile2 = os.path.join(output_dir, 'SensorValuesTime2.pickle')
+    simulation.sensorValuesFile = 'output/SensorValues.pickle'
+    simulation.sensorValuesTimeFile = 'output/SensorValuesTime.pickle'
     
     simulation.saveImages = False
-    # simulation.imageFilename = 'output/SimulationImages/Simulation'
-    simulation.imageFilename = os.path.join(output_dir, 'SimulationImages', 'Simulation')
+    simulation.imageFilename = 'output/SimulationImages/Simulation'
     
     
     ### settings for interactive marker
@@ -372,7 +356,6 @@ def init():
     #Options for Visualization
     simulation.frameList = True
     simulation.showJointAxes=True
-    simulation.Solution = True
 
     simulation.animation=False
     
@@ -382,8 +365,8 @@ def init():
     #Options for Solution Viewer
     simulation.displaySimulation = False
     simulation.solutionViewer = True
-    # simulation.solutionViewerFile = 'solution/coordinatesSolution.txt'
-    simulation.solutionViewerFile = os.path.join(solution_dir, 'coordinatesSolution.txt')
+    simulation.solutionViewerFile = 'solution/coordinatesSolution.txt'
+    simulation.solutionViewerFileIKIN = 'solution/coordinatesSolutionIKIN.txt'
     simulation.solutionWritePeriod = 0.01
 
     #%%+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -404,12 +387,8 @@ def init():
     output.debug = True
 
     output.plot = False
-    # output.folder = 'output/30_06_21/ADEFahrt1/'
-    # output.coordinateFile = 'output/coordinates.txt'
-    
-    output_folder = os.path.join(script_dir, 'output', '30_06_21', 'ADEFahrt1')
-    output.folder = output_folder
-    output.coordinateFile = os.path.join(script_dir, 'output', 'coordinates.txt')
+    output.folder = 'output/30_06_21/ADEFahrt1/'
+    output.coordinateFile = 'output\coordinates.txt'
 
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO, datefmt='%m/%d/%Y %H:%M:%S ')
     logging.getLogger('matplotlib.font_manager').disabled = True

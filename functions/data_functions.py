@@ -25,9 +25,7 @@ from vtk import VTK_TRIANGLE, VTK_TETRA
 
 from collections import deque
 
-# from numpy.lib.arraysetops import 
-
-
+# from numpy.lib.arraysetops import intersect1d
 import config
 from flask import jsonify
 from copy import deepcopy

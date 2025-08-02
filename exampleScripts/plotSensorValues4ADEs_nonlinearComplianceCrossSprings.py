@@ -90,15 +90,11 @@ SensorValuesIdealImport = pickle.load( open('output/nonlinearComplianceMatrixSta
 # SensorValues4ATCRBSD = pickle.load( open('output/example4ATCs/SensorValuesTest.pickle',  'rb') ) # loading sensor values
 # SensorValues4ATCRBSDImport = pickle.load( open('output/example4ATCs/SensorValuesTimeTest.pickle',  'rb') ) # loading sensor values
 
-# SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
+SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
+SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
 
-SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesNN.pickle',  'rb') ) # loading sensor values
-SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
-
-# SensorValues4ATCRBSD = pickle.load( open('output/SensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCRBSDImport = pickle.load( open('output/SensorValuesTime.pickle',  'rb') ) # loading sensor values
-
+# SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesNN.pickle',  'rb') ) # loading sensor values
+# SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
 # SensorValues4ATCRBSD = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesCrossSprings.pickle',  'rb') ) # loading sensor values
 # SensorValues4ATCRBSDImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeCrossSprings.pickle',  'rb') ) # loading sensor values
 
@@ -119,18 +115,11 @@ with open('data//experiments//4ADEs#//uncorrected//MeshPointsVicon.txt') as f:
             for k in range(3):
                 SensorValues4ATCMeasurement[i][int(line[j])][k] = np.matrix(line[j+k*2+1:j+k*2+3],dtype=float)
 
-SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesNN.pickle',  'rb') ) # loading sensor values
-SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
+# SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesNN.pickle',  'rb') ) # loading sensor values
+# SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeNN.pickle',  'rb') ) # loading sensor values
 
-
-SensorValuesIdealFein = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesIdealFein.pickle',  'rb') ) # loading sensor values
-SensorValuesTimeIdealFein = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/SensorValuesTimeIdealFein.pickle',  'rb') ) # loading sensor values
-
-# SensorValues4ATCMeasurement = pickle.load( open('output/SensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCMeasurementImport = pickle.load( open('output/SensorValuesTime.pickle',  'rb') ) # loading sensor values
-
-# SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
-# SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
+SensorValues4ATCMeasurement = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValues.pickle',  'rb') ) # loading sensor values
+SensorValues4ATCMeasurementImport = pickle.load( open('output/nonlinearComplianceMatrixStaticCrossSprings/nonlinearComplianceMatrixSensorValuesTime.pickle',  'rb') ) # loading sensor values
 
 # meshPointsVicon = {}
 # with open('data//experiments//4ADEs#//uncorrected//MeshPointsVicon.txt') as f:
@@ -226,21 +215,13 @@ figName='Trajectories'
 Fig3=plt.figure(figName)
 ax=Fig3.gca() # get current axes
 
-# vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCIdealTime,adeMoveList, colorlineListSelected[0], lineStyleSelected[0], markerstyleListSelected[0],figName,label='ideal',printMarkerLabel=False,printLegend=False)
+vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCIdealTime,adeMoveList, colorlineListSelected[0], lineStyleSelected[0], markerstyleListSelected[0],figName,label='ideal',printMarkerLabel=False,printLegend=False)
 # vf.plotTrajectoriesTime(ID,Point,SensorValues4ATCRBSDTime,adeMoveList,  colorlineListSelected[1], lineStyleSelected[1], markerstyleListSelected[1],figName,label='model',printMarkerLabel=False,printLegend=False)
-
-
-# vf.plotTrajectoriesTime(ID,Point,SensorValuesTimeIdealFein,adeMoveList, colorlineListSelected[0], lineStyleSelected[1], '',figName,label='ideal',printMarkerLabel=False,printLegend=False)
 
 for i in ID:
     for j in Point:
-        vf.PlotSensorValuePoint(SensorValuesIdealFein,i,j,linecolor = 'black',lineStyle='--',markercolor = 'black',marker='', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=False,time=False,markerLabel='',printMarkerLabel=False,everyTwoLabels=True)
-        
-        #Cross-spring pivots
-        vf.PlotSensorValuePoint(SensorValuesIdeal,i,j,linecolor = 'red',lineStyle='',markercolor = 'red',marker='o', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',everyTwoLabels=True)
-        
-        #NN
-        vf.PlotSensorValuePoint(SensorValues4ATCRBSD,i,j,linecolor = colorlineListSelected[1],lineStyle='',markercolor = colorlineListSelected[1] ,marker=markerstyleListSelected[1], figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='',everyTwoLabels=True)
+        vf.PlotSensorValuePoint(SensorValues4ATCMeasurement,i,j,linecolor = 'red',lineStyle='-',markercolor = 'red',marker='o', figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='')
+        vf.PlotSensorValuePoint(SensorValues4ATCRBSD,i,j,linecolor = colorlineListSelected[1],lineStyle=lineStyleSelected[1],markercolor = colorlineListSelected[1] ,marker=markerstyleListSelected[1], figureName = figName,label='',combinePlots=True,plotLine=True,plotMarker=True,time=False,markerLabel='')
         # offsetOfLine=vf.calculateOffset(SensorValuesIdeal,SensorValues4ATCMeasurement,0,i,j)
         # vf.substractOffset(SensorValues4ATCMeasurement,i,j,offsetOfLine=offsetOfLine,linecolor = 'orange',markercolor = 'orange', figureName = figName,label='',marker='x',combinePlots=True)
 
@@ -257,27 +238,19 @@ lineStep=len(adeMoveList.data)-1 #first value of line 1
 vf.plotMesh(SensorValues4ATCIdealTime,lineStep,plotFirstIndex=False,figureName=figName,labelATC=False)
 
 
-# plt.legend()
+plt.legend()
 plt.grid()
 plt.axis('equal')
 ax.grid(True, 'major', 'both')
 ax.xaxis.set_major_locator(ticker.MaxNLocator(10)) 
 ax.yaxis.set_major_locator(ticker.MaxNLocator(10)) 
-plt.xlim(-0.1, 0.65)
+plt.xlim(-0.5, 0.6)
 ax.set_ylabel(r'nodes y in m')
 ax.set_xlabel(r'nodes x in m')
-plt.tight_layout()
 plt.show()
 
     
 
-saveFigure=True
-if saveFigure:
-    plt.savefig('output/4ATCs/systemOf4ATCTrajectory.pdf',format='pdf')
-    plt.savefig('output/4ATCs/systemOf4ATCTrajectory.svg', format='svg')
-    
-    
-    
 # #%% figure2 movement over time
 # figName='movementOverTime'
 # Fig4=plt.figure(figName)
@@ -308,68 +281,65 @@ if saveFigure:
 
 
 
+#%% figure3 plot and calculate offset/error
+[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValues4ATCRBSD,SensorValues4ATCMeasurement,figureName='test',combinePlots=True)
+print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
 
-# uncomment
-###############################################################################
-# #%% figure3 plot and calculate offset/error
-# [errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValues4ATCRBSD,SensorValues4ATCMeasurement,figureName='test',combinePlots=True)
-# print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
-
-# [errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValuesIdeal,SensorValues4ATCMeasurement,figureName='test',combinePlots=True)
-# print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
+[errorModelIdealList,maxError,maxErrorMean]=vf.plotErrorOffset(ID,Point,SensorValuesIdeal,SensorValues4ATCMeasurement,figureName='test',combinePlots=True)
+print('maxError: ',maxError,'maxErrorMean: ',maxErrorMean)
 
 
-# #%% figure4 error boxPlot
-# for numberATCs in [6,8]:
-#     if numberATCs==6:
-#         ID2=[1,2,3,4]
-#         Point2=[0,1,2]
-#         offset=-0.2
-#         facecolor='C0'
-#         SensorValues=SensorValuesIdeal
-#     elif numberATCs==8:
-#         ID2=[1,2,3,4]
-#         Point2=[0,1,2]
-#         offset=0
-#         facecolor='C2'
-#         SensorValues=SensorValues4ATCRBSD
+#%% figure4 error boxPlot
+for numberATCs in [6,8]:
+    if numberATCs==6:
+        ID2=[1,2,3,4]
+        Point2=[0,1,2]
+        offset=-0.2
+        facecolor='C0'
+        SensorValues=SensorValuesIdeal
+    elif numberATCs==8:
+        ID2=[1,2,3,4]
+        Point2=[0,1,2]
+        offset=0
+        facecolor='C2'
+        SensorValues=SensorValues4ATCRBSD
 
-#     figName='boxPlot'
-#     Fig5=plt.figure(figName)
-#     ax=Fig5.gca() # get current axes
-#     # fig, ax = plt.subplots()
+    figName='boxPlot'
+    Fig5=plt.figure(figName)
+    ax=Fig5.gca() # get current axes
+    # fig, ax = plt.subplots()
     
-#     [errorModelIdealList,maxError,maxErrorMean,errorModelIdealListValues]=vf.plotErrorOffsetBoxPlot(ID2,Point2,SensorValues,SensorValues4ATCMeasurement,figureName='boxPlot',label='4ATC',combinePlots=True,plotOverSteps=False,setOffset=offset,facecolor=facecolor)
-#     import matplotlib.patches as mpatches
-#     patch1 = mpatches.Patch(color='C0', label='IdealMeasurement')
-#     patch2 = mpatches.Patch(color='C2', label='ModelMeasurement')
-#     ax.legend(handles=[patch1,patch2])
+    [errorModelIdealList,maxError,maxErrorMean,errorModelIdealListValues]=vf.plotErrorOffsetBoxPlot(ID2,Point2,SensorValues,SensorValues4ATCMeasurement,figureName='boxPlot',label='4ATC',combinePlots=True,plotOverSteps=False,setOffset=offset,facecolor=facecolor)
+    import matplotlib.patches as mpatches
+    patch1 = mpatches.Patch(color='C0', label='IdealMeasurement')
+    patch2 = mpatches.Patch(color='C2', label='ModelMeasurement')
+    ax.legend(handles=[patch1,patch2])
     
-#     plt.grid()
-#     ax.grid(True, 'major', 'both')
-#     ax.set_ylabel(r'error all steps in m')
-#     ax.set_xlabel(r'points of ADEs')
-#     plt.show()
+    plt.grid()
+    ax.grid(True, 'major', 'both')
+    ax.set_ylabel(r'error all steps in m')
+    ax.set_xlabel(r'points of ADEs')
+    plt.show()
     
     
     
-#     #%% figure2 movement over time    
-#     figName='boxPlot2'
-#     Fig6=plt.figure(figName)
-#     ax=Fig6.gca() # get current axes
+    #%% figure2 movement over time    
+    figName='boxPlot2'
+    Fig6=plt.figure(figName)
+    ax=Fig6.gca() # get current axes
     
-#     [errorModelIdealList,maxError,maxErrorMean,errorModelIdealListValues]=vf.plotErrorOffsetBoxPlot(ID2,Point2,SensorValues,SensorValues4ATCMeasurement,figureName='boxPlot2',label='4ATC',combinePlots=True,plotOverSteps=True,setOffset=offset,facecolor=facecolor)
-#     import matplotlib.patches as mpatches
-#     patch1 = mpatches.Patch(color='C0', label='IdealMeasurement')
-#     patch2 = mpatches.Patch(color='C2', label='ModelMeasurement')
-#     ax.legend(handles=[patch1,patch2])
+    [errorModelIdealList,maxError,maxErrorMean,errorModelIdealListValues]=vf.plotErrorOffsetBoxPlot(ID2,Point2,SensorValues,SensorValues4ATCMeasurement,figureName='boxPlot2',label='4ATC',combinePlots=True,plotOverSteps=True,setOffset=offset,facecolor=facecolor)
+    import matplotlib.patches as mpatches
+    patch1 = mpatches.Patch(color='C0', label='IdealMeasurement')
+    patch2 = mpatches.Patch(color='C2', label='ModelMeasurement')
+    ax.legend(handles=[patch1,patch2])
     
-#     plt.grid()
-#     ax.grid(True, 'major', 'both')
-#     ax.set_ylabel(r'error of all points')
-#     ax.set_xlabel(r'steps')
-#     plt.show()    
-###############################################################################
+    plt.grid()
+    ax.grid(True, 'major', 'both')
+    ax.set_ylabel(r'error of all points')
+    ax.set_xlabel(r'steps')
+    plt.show()    
+
 
 
 

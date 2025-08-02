@@ -20,13 +20,13 @@ import os
 import sys
 
 if __name__ == "__main__":
-    if os.getcwd().split('/')[-1].__contains__('functions'):
+    if os.getcwd().split('\\')[-1].__contains__('functions'):
         os.chdir('..')
-    if sys.path[0].split('/')[-1].__contains__('functions'):
+    if sys.path[0].split('\\')[-1].__contains__('functions'):
         sys.path.append(os.getcwd())
 
 
-solutionFilePath="/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/solution/coordinatesSolution.txt"
+solutionFilePath="./solution/coordinatesSolution.txt"
 if os.path.isfile(solutionFilePath):
     os.remove(solutionFilePath)
     
@@ -54,7 +54,7 @@ import time
 import pickle
 import json
 
-from numba import jit
+
 
 import torch
 import torch.nn as nn
@@ -62,6 +62,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 # from sklearn.model_selection import train_test_split
 import numpy as np
+
 
 
 
@@ -110,30 +111,35 @@ def PreStepUserFunction2(mbs, t):
 
 
  
-    config.simulation.massPoints2DIdealRevoluteJoint2D = True
+    # config.simulation.massPoints2DIdealRevoluteJoint2D = True
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
         refLength = (config.lengths.L0) 
     else:
         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))  
-    config.simulation.massPoints2DIdealRevoluteJoint2D = False
     
  
     # refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
     
+    for oSpringDamper in mbs.variables['springDamperDriveObjects']: 
+        mbs.SetObjectParameter(oSpringDamper, 'stiffness',1)
         
     for i in sensorError:
         positionInteractivNode = mbs.GetSensorValues(i)
         if config.simulation.constrainActorLength:
             for oSpringDamper in mbs.variables['springDamperDriveObjects']: 
                 ChangeActorStiffnessStartingNode(mbs ,t, oSpringDamper,positionInteractivNode)
+      
                 
-        
+    for oSpringDamper in mbs.variables['springDamperDriveObjects']: 
+        print('actor:',oSpringDamper,'stiffness:',mbs.GetObjectParameter(oSpringDamper,'stiffness'))
+
+
+     
+    
     # if config.simulation.massPoints2DIdealRevoluteJoint2D:
     #     mapIdealToReal= 2*(config.lengths.L1+config.lengths.L2)
     # else:
     #     mapIdealToReal=0
-        
-        
         
         
     for i, oSpringDamper in enumerate(mbs.variables['springDamperDriveObjects']): 
@@ -190,22 +196,18 @@ class InverseKinematicsATE():
         
         for sensor in sensorsError: 
             mySensor = self.mbsIK.GetSensor(sensor)
-            if mySensor['outputVariableType'] != exu.OutputVariableType.Position or mySensor['sensorType'] != 'Marker': 
-                raise ValueError("Only InverseKinematicsATE only allows SensorMarker with Position output.")
+            # if mySensor['outputVariableType'] != exu.OutputVariableType.Position or mySensor['sensorType'] != 'Marker': 
+            #     raise ValueError("Only InverseKinematicsATE only allows SensorMarker with Position output.")
             self.markerError += [mySensor['markerNumber']]
-        
-        
+
         self.position0 = []
         self.constraints = []
         self.l0 = mbs.variables['LrefExt']
         
-        # 
+        # ###########
         for i in range(len(self.markerError)):  
             p0 = self.mbsIK.GetSensorValues(self.sensorsError[i])
             self.position0 += p0[:2].tolist()
-
-        
-
            
         # ###########    
         # ###########
@@ -227,12 +229,12 @@ class InverseKinematicsATE():
 
 
         # create constraints to ground
-        for i in range(len(self.markerForAllToGround)): 
-            self.mGroundList2 += [self.mbsIK.AddMarker(MarkerBodyRigid(bodyNumber=oGround, localPosition = self.position02[i*2:i*2+2] + [0]))]
-            # self.constraints2 += [self.mbsIK.AddObject(RevoluteJoint2D(markerNumbers=[self.mGroundList2[-1], self.markerForAllToGround[i]]))]
-            k=[1e1,1e1,0]
-            d=[k[0]*1e-2,k[0]*1e-2,0]
-            self.constraints2 += [self.mbsIK.AddObject(CartesianSpringDamper(markerNumbers=[self.mGroundList2[-1], self.markerForAllToGround[i]], stiffness=k, damping=d, visualization=VNodePointGround(show=False)))]
+        # for i in range(len(self.markerForAllToGround)): 
+        #     self.mGroundList2 += [self.mbsIK.AddMarker(MarkerBodyRigid(bodyNumber=oGround, localPosition = self.position02[i*2:i*2+2] + [0]))]
+        #     # self.constraints2 += [self.mbsIK.AddObject(RevoluteJoint2D(markerNumbers=[self.mGroundList2[-1], self.markerForAllToGround[i]]))]
+        #     k=[1e3,1e3,0]
+        #     d=[1e1,1e2,0]
+        #     self.constraints2 += [self.mbsIK.AddObject(CartesianSpringDamper(markerNumbers=[self.mGroundList2[-1], self.markerForAllToGround[i]], stiffness=k, damping=d, visualization=VNodePointGround(show=False)))]
         ###########    
         # ###########
 
@@ -241,7 +243,13 @@ class InverseKinematicsATE():
         # create constraints on the nodes to compensate the error
         for i in range(len(self.markerError)): 
             self.mGroundList += [self.mbsIK.AddMarker(MarkerBodyRigid(bodyNumber=oGround, localPosition = self.position0[i*2:i*2+2] + [0]))]
+            
             self.constraints += [self.mbsIK.AddObject(RevoluteJoint2D(markerNumbers=[self.mGroundList[-1], self.markerError[i]]))]
+            
+            # self.constraints += [self.mbsIK.AddObject(GenericJoint(markerNumbers=[self.mGroundList[-1], self.markerError[i]], 
+            #                             constrainedAxes=[1,1,0,0,0,0],
+            #                             activeConnector=True,
+            #                             visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))]
             
             # k=[1e15,1e15,0]
             # d=[1e2,1e2,0]
@@ -249,14 +257,16 @@ class InverseKinematicsATE():
         
         
                 
-        # for oSpringDamper in myMbs.variables['springDamperDriveObjects']: 
-        #     self.mbsIK.SetObjectParameter(oSpringDamper, 'stiffness', 1)
+        for oSpringDamper in myMbs.variables['springDamperDriveObjects']: 
+            self.mbsIK.SetObjectParameter(oSpringDamper, 'stiffness', 1)
         
         # for oSpringDamper in myMbs.variables['springDamperDriveObjects']: 
         #     ChangeActorStiffnessStartingNode(self.mbsIK ,0, oSpringDamper,ADE)
             
         # for itemNumber in Actors:
         #     ChangeActorStiffness(mbs,t,itemNumber)
+
+
         
         self.nConstraints = len(self.constraints)
             
@@ -265,11 +275,13 @@ class InverseKinematicsATE():
         self.simulationSettings = exudyn.SimulationSettings()
         self.simulationSettings.solutionSettings.writeSolutionToFile = False
         self.simulationSettings.solutionSettings.binarySolutionFile = False
-        # self.simulationSettings.linearSolverSettings.ignoreSingularJacobian = True
+        
+        self.simulationSettings.linearSolverSettings.ignoreSingularJacobian = True
+        
         self.simulationSettings.displayComputationTime = False
         self.simulationSettings.displayStatistics = False
         
-        self.simulationSettings.staticSolver.newton.maxIterations = 20 # ursprünglihc 50
+        self.simulationSettings.staticSolver.newton.maxIterations = 50 
         self.simulationSettings.staticSolver.adaptiveStep = True
         self.simulationSettings.staticSolver.verboseMode = 0
         self.simulationSettings.displayGlobalTimers = 0
@@ -283,11 +295,12 @@ class InverseKinematicsATE():
         self.simulationSettings.displayStatistics = False     
         self.simulationSettings.displayComputationTime = False  
             
-        # self.simulationSettings.staticSolver.newton.relativeTolerance = 1e-4
-        # self.simulationSettings.staticSolver.newton.absoluteTolerance = 1e-4
+        self.simulationSettings.solutionSettings.writeSolutionToFile = True
+        self.simulationSettings.solutionSettings.coordinatesSolutionFileName = config.simulation.solutionViewerFileIKIN
+        self.simulationSettings.solutionSettings.appendToFile = True
         
-        # self.simulationSettings.staticSolver.numberOfLoadSteps = 50
-        self.simulationSettings.staticSolver.numberOfLoadSteps = 10 # ursprünglihc 25
+        self.simulationSettings.staticSolver.numberOfLoadSteps = 10
+        # self.simulationSettings.staticSolver.numberOfLoadSteps = 10
         # self.simulationSettings.staticSolver.newton.maxIterations = 50 
         # self.simulationSettings.staticSolver.adaptiveStep = True
         # self.simulationSettings.staticSolver.verboseMode = 0
@@ -297,11 +310,12 @@ class InverseKinematicsATE():
         
         # assemble with new constraints
         self.mbsIK.Assemble()
+
         
-    def InverseKinematicsRelative(self, mbs1, offsetList, TCPlist): 
+    def InverseKinematicsRelative(self, mbs1, offsetList): 
         # actorLength_current = []
-        # if len(offsetList) != self.nConstraints*2: 
-        #     raise ValueError("InverseKinematicsATE: function InverseKinematicsRelative expected offsetList of length {} but got {}".format(self.nConstraints*2, len(offsetList)))
+        if len(offsetList) != self.nConstraints*2: 
+            raise ValueError("InverseKinematicsATE: function InverseKinematicsRelative expected offsetList of length {} but got {}".format(self.nConstraints*2, len(offsetList)))
             
         if not(mbs1 is None): 
             for i, oSpringDamper in enumerate(mbs1.variables['springDamperDriveObjects']): 
@@ -317,24 +331,24 @@ class InverseKinematicsATE():
             mbs1 = self.mbsIK
         
         currentPos = []
-        # for i in range(len(self.sensorsError)): 
-        for i in TCPlist:
+        for i in range(len(self.sensorsError)): 
             p0 = self.mbsIK.GetSensorValues(self.sensorsError[i])
             currentPos += p0[:2].tolist()
             # currentPos  += mbs1.GetNodeOutput(self.nodesError[i], exu.OutputVariableType.Displacement, )[0:2].tolist()
         
-        # for i in range(self.nConstraints): 
-        #     newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
-        #     self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
-        for i in range(len(TCPlist)):
+        for i in range(self.nConstraints): 
             newPos = currentPos[i*2:i*2+2] + offsetList[i*2:i*2+2]
-            self.mbsIK.SetMarkerParameter(self.mGroundList[TCPlist[i]], 'localPosition', newPos.tolist() + [0])
+            self.mbsIK.SetMarkerParameter(self.mGroundList[i], 'localPosition', newPos.tolist() + [0])
             
             # self.mbsIK.SetObjectParameter(self.constraints[i], 'offset', currentPos[i] + offsetList[i])
             # print('constraint {}, val {}'.format(i, currentPos[i] + offsetList[i] ))
-            
+
         self.SolveSystem()
         
+       
+            
+            
+            
         return
         
     def InverseKinematics(self, mbs1, errorList): 
@@ -470,11 +484,10 @@ class CATC:
     #ToDo
     coordinatePointsATC = []
     nodesATC = []
-    
+
 #user function for friction against velocity vector, including zeroZone
 #CartesianSpringDamper user function for friction
 def UserFunctionSpringDamperFriction(mbs, t, itemNumber, u, v, k, d, offset):
-    # print(f"[DEBUG] Friction function called for item {itemNumber} at t={t}, v={v}, offset={offset}")
     vNorm = NormL2(v)
     f=[v[0],v[1],v[2]]
     if abs(vNorm) < offset[0]:
@@ -1092,18 +1105,12 @@ def calculateVisualization(cSixBarLinkage,localP,mode,sideNumber,ID,nodeNumber):
     if mode=='graphicsSTL':
         #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         #graphics Transformations: stl-files with 66.25° starting position
-        #graphicsCER = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsCER.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        #graphicsCEL = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsCEL.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        #graphicsL2 = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsL2.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        #graphicsL2ground = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsL2ground.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        #graphicsCE1R = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsCE1R.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        #graphicsCE2L = GraphicsDataFromSTLfileTxt(fileName='./data/stlFiles/graphicsCE2L.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsCER = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsCER.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsCEL = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsCEL.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsL2 = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsL2.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsL2ground = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsL2ground.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsCE1R = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsCE1R.stl',color=[0.1,0.1,0.8,1],verbose=False) 
-        graphicsCE2L = GraphicsDataFromSTLfileTxt(fileName='/Users/fynnheidenreich/Desktop/Uni/6/bachelor/HeidenreichFynn/programPARTS24/data/stlFiles/graphicsCE2L.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsCER = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsCER.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsCEL = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsCEL.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsL2 = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsL2.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsL2ground = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsL2ground.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsCE1R = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsCE1R.stl',color=[0.1,0.1,0.8,1],verbose=False) 
+        graphicsCE2L = GraphicsDataFromSTLfileTxt(fileName='.\data\stlFiles\graphicsCE2L.stl',color=[0.1,0.1,0.8,1],verbose=False) 
 
         M0Local=list((np.array(localP[4])-np.array(localP[3]))/2+np.array(localP[3]))
         M2Local=list((np.array(localP[6])-np.array(localP[4]))/2+np.array(localP[4]))
@@ -1384,7 +1391,7 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
         d=[1e2,1e2,0]
         
     #parameters for RigidBodySpringDamper for SixBarLinkages
-    if config.simulation.connectorRigidBodySpringDamper or config.simulation.rigidBodySpringDamperNonlinearStiffness:
+    if config.simulation.connectorRigidBodySpringDamper:
         k=np.zeros((6, 6))
         k[0,0]=cSixBarLinkage.SixBarLinkageParametersConnectors.k1[0]
         k[1,1]=cSixBarLinkage.SixBarLinkageParametersConnectors.k1[1]
@@ -1509,7 +1516,22 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
     mB0L = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid0, localPosition=[-L2/2,0.,0.]))
     mB0R = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oRigid0, localPosition=[L2/2,0.,0.]))
     mG1 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oRigid0, localPosition=list(-np.array(M0Local))+[0.]))   
-
+    
+    # gContact = mbs.AddGeneralContact()
+    # mu = 0.2*0      #dry friction
+    # gContact.frictionProportionalZone = 1e-3
+    
+    # # gContact.excludeDuplicatedTrigSphereContactPoints = False
+    # fricMat = mu*np.eye(1)
+    # gContact.SetFrictionPairings(fricMat)
+    
+    # [meshPointsCube, meshTrigsCube] = GraphicsData2PointsAndTrigs(graphicsL2ground[3])
+    # gContact.AddTrianglesRigidBodyBased(rigidBodyMarkerIndex=mG1, contactStiffness=1000, contactDamping=0.1, frictionMaterialIndex=0,
+    #                                                 pointList=meshPointsCube,  triangleList=meshTrigsCube)
+    # [meshPointsCube, meshTrigsCube] = GraphicsData2PointsAndTrigs(graphicsL2ground[5])
+    # gContact.AddTrianglesRigidBodyBased(rigidBodyMarkerIndex=mG1, contactStiffness=1000, contactDamping=0.1, frictionMaterialIndex=0,
+    #                                                 pointList=meshPointsCube,  triangleList=meshTrigsCube)    
+    
     if not config.simulation.simplifiedLinksIdealCartesianSpringDamper and not config.simulation.simplifiedLinksIdealRevoluteJoint2D:    
         #rigid body B1 with markers mB1L,mB1R, mB1M
         nRigid1 = mbs.AddNode(Rigid2D(referenceCoordinates=P5+[alphaMean-psi+theta], initialVelocities=[0,0,0]));
@@ -1543,9 +1565,9 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
     
     
     
-    ####################################
-    # mbs.AddLoad(Force(markerNumber = mG1, loadVector=[-0.983*np.cos(15*np.pi/180)*0.2,0,0])) 
-    ####################################
+    # ####################################
+    # mbs.AddLoad(Force(markerNumber = mG1, loadVector=[0,-0.01,0])) 
+    # ####################################
     
     
     
@@ -1630,36 +1652,30 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
 
     #   Compliant joints
     if config.simulation.useCompliantJoints:  
-        circularHingeHight=8e-3*1e8    #6.5e-3 *2 (atm not implemented)
-        circularHingeHight2=8e-3*1e8   #40e-3 (atm not implemented)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB0LGEB2D,mB1LGEB2D,(alphaMean-psi+theta ) -deltaAlpha ,-theta +deltaAlpha,0,0,0, P3L,P3R, L,6.5e-3*2)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB0RGEB2D,mB2LGEB2D,(alphaMean-psi+theta) -deltaAlpha,-theta +deltaAlpha,0,0,0, P4L,P4R, L,6.5e-3*2)
         
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB0LGEB2D,mB1LGEB2D,(alphaMean-psi+theta ) -deltaAlpha ,-theta +deltaAlpha,0,0,0, P3L,P3R, L,circularHingeHight)
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB0RGEB2D,mB2LGEB2D,(alphaMean-psi+theta) -deltaAlpha,-theta +deltaAlpha,0,0,0, P4L,P4R, L,circularHingeHight)
-        
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB5RGEB2D,mB4LGEB2D,psi+theta,-alphaMean-theta ,0,0,0, P9L,P9R, L,circularHingeHight)
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB5LGEB2D,mB3LGEB2D,psi+theta,-alphaMean-theta,psi,0,0, P8L,P8R, L,circularHingeHight)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB5RGEB2D,mB4LGEB2D,psi+theta,-alphaMean-theta ,0,0,0, P9L,P9R, L,6.5e-3*2)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB5LGEB2D,mB3LGEB2D,psi+theta,-alphaMean-theta,psi,0,0, P8L,P8R, L,6.5e-3*2)
             
         
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB3RGEB2D,mB2RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+theta -deltaAlpha/2 , -theta +deltaAlpha/2, np.pi/2-(alphaMean-psi)/2 -np.pi ,0, 0, P6L,P6R, L,circularHingeHight2)
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB4RGEB2D,mB1RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+psi+theta -deltaAlpha/2 , -psi-theta +deltaAlpha/2  ,np.pi/2-(alphaMean-psi)/2+psi -np.pi ,0,0, P7L,P7R, L,circularHingeHight2) 
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB3RGEB2D,mB2RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+theta -deltaAlpha/2 , -theta +deltaAlpha/2, np.pi/2-(alphaMean-psi)/2 -np.pi ,0, 0, P6L,P6R, L,40e-3)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB4RGEB2D,mB1RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+psi+theta -deltaAlpha/2 , -psi-theta +deltaAlpha/2  ,np.pi/2-(alphaMean-psi)/2+psi -np.pi ,0,0, P7L,P7R, L,40e-3) 
         
-        CompliantJointsGeometricallyExactBeam2D(mbs,mB1MGEB2D,mB3MGEB2D,-((np.pi/2-alphaMean/2))+theta -deltaAlpha/2 , -alphaMean+psi-theta - np.pi/2*0 +deltaAlpha/2  ,(-np.pi/2+(alphaMean)/2) , 0, 0, P5L,P5R, L,circularHingeHight2)
+        CompliantJointsGeometricallyExactBeam2D(mbs,mB1MGEB2D,mB3MGEB2D,-((np.pi/2-alphaMean/2))+theta -deltaAlpha/2 , -alphaMean+psi-theta - np.pi/2*0 +deltaAlpha/2  ,(-np.pi/2+(alphaMean)/2) , 0, 0, P5L,P5R, L,40e-3)
     
     # #define joints+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   
-    elif config.simulation.useCrossSpringPivot:    
-        crossSpringPivotHight=7.5e-3 *2 #(atm not implemented)
-        crossSpringPivotHight2=40e-3 #(atm not implemented)
+    elif config.simulation.useCrossSpringPivot:       
+        CrossSpringPivot(mbs,mB0LGEB2D,mB1LGEB2D,(alphaMean-psi+theta ) -deltaAlpha,-theta +deltaAlpha,0,0,0, P3L,P3R, L,6.5e-3*2)
+        CrossSpringPivot(mbs,mB0RGEB2D,mB2LGEB2D,(alphaMean-psi+theta) -deltaAlpha,-theta +deltaAlpha,0,0,0, P4L,P4R, L,6.5e-3*2)
         
-        CrossSpringPivot(mbs,mB0LGEB2D,mB1LGEB2D,(alphaMean-psi+theta ) -deltaAlpha,-theta +deltaAlpha,0,0,0, P3L,P3R, L,crossSpringPivotHight)
-        CrossSpringPivot(mbs,mB0RGEB2D,mB2LGEB2D,(alphaMean-psi+theta) -deltaAlpha,-theta +deltaAlpha,0,0,0, P4L,P4R, L,crossSpringPivotHight)
+        CrossSpringPivot(mbs,mB5RGEB2D,mB4LGEB2D,psi+theta,-alphaMean-theta,0,0,0, P9L,P9R, L,6.5e-3*2)
+        CrossSpringPivot(mbs,mB5LGEB2D,mB3LGEB2D,psi+theta,-alphaMean-theta,psi,0,0, P8L,P8R, L,6.5e-3*2)
         
-        CrossSpringPivot(mbs,mB5RGEB2D,mB4LGEB2D,psi+theta,-alphaMean-theta,0,0,0, P9L,P9R, L,crossSpringPivotHight)
-        CrossSpringPivot(mbs,mB5LGEB2D,mB3LGEB2D,psi+theta,-alphaMean-theta,psi,0,0, P8L,P8R, L,crossSpringPivotHight)
+        CrossSpringPivot(mbs,mB3RGEB2D,mB2RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+theta -deltaAlpha/2 , -theta +deltaAlpha/2, np.pi/2-(alphaMean-psi)/2 -np.pi ,0, 0, P6L,P6R, L, 40e-3)
+        CrossSpringPivot(mbs,mB4RGEB2D,mB1RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+psi+theta -deltaAlpha/2, -psi-theta+deltaAlpha/2  ,np.pi/2-(alphaMean-psi)/2+psi -np.pi,0,0, P7L,P7R, L, 40e-3) 
         
-        CrossSpringPivot(mbs,mB3RGEB2D,mB2RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+theta -deltaAlpha/2 , -theta +deltaAlpha/2, np.pi/2-(alphaMean-psi)/2 -np.pi ,0, 0, P6L,P6R, L, crossSpringPivotHight2)
-        CrossSpringPivot(mbs,mB4RGEB2D,mB1RGEB2D,-(np.pi/2-(alphaMean-psi)/2)+psi+theta -deltaAlpha/2, -psi-theta+deltaAlpha/2  ,np.pi/2-(alphaMean-psi)/2+psi -np.pi,0,0, P7L,P7R, L, crossSpringPivotHight2) 
-        
-        CrossSpringPivot(mbs,mB1MGEB2D,mB3MGEB2D,-((np.pi/2-alphaMean/2))+theta -deltaAlpha/2 , -alphaMean+psi-theta - np.pi/2*0 +deltaAlpha/2 ,(-np.pi/2+(alphaMean)/2), 0, 0, P5L,P5R, L, crossSpringPivotHight2)      
+        CrossSpringPivot(mbs,mB1MGEB2D,mB3MGEB2D,-((np.pi/2-alphaMean/2))+theta -deltaAlpha/2 , -alphaMean+psi-theta - np.pi/2*0 +deltaAlpha/2 ,(-np.pi/2+(alphaMean)/2), 0, 0, P5L,P5R, L, 40e-3)      
      
     elif config.simulation.cartesianSpringDamperActive:
         mbs.AddObject(CartesianSpringDamper(markerNumbers=[mB0L,mB1L],stiffness=k,damping=d))
@@ -1806,71 +1822,90 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
         mBRR12 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oRigid3, localPosition=P56Local+[0.]))
         mBRR65 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=oRigid3, localPosition=[0.,0.,0.]))
     
-        # k=np.zeros((6, 6))
-        # d=np.zeros((6, 6))
+        k=np.zeros((6, 6))
+        d=np.zeros((6, 6))
     
         #connect mass left side with cableLeft
         
         if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge:
+            # circular hinge
+            # input_size = 3
+            # hidden_size = 9
+            # output_size = 3  
+            # # Define the neural network model
+            # class NeuralNetwork(nn.Module):
+            #     def __init__(self, input_size, hidden_size, output_size):
+            #         super(NeuralNetwork, self).__init__()
+            #         self.layer1 = nn.Linear(input_size, hidden_size)
+            #         self.relu = nn.ELU()
+            #         self.layer3 = nn.Linear(hidden_size, output_size)
+            #     def forward(self, x):
+            #         x = self.layer1(x)
+            #         x = self.relu(x)
+            #         x = self.layer3(x)
+            #         return x
                 
-            input_size = 3
-            hidden_size = 16
-            output_size = 3  
-            # Define the neural network model
+                
             class NeuralNetwork(nn.Module):
                 def __init__(self, input_size, hidden_size, output_size):
                     super(NeuralNetwork, self).__init__()
                     self.layer1 = nn.Linear(input_size, hidden_size)
+                    self.relu = nn.ELU()
                     self.layer2 = nn.Linear(hidden_size, hidden_size)
+                    self.relu = nn.ReLU()
                     self.layer3 = nn.Linear(hidden_size, hidden_size)
-                    self.elu = nn.ELU()
+                    self.relu = nn.ELU()
                     self.layer4 = nn.Linear(hidden_size, output_size)
                 def forward(self, x):
                     x = self.layer1(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer2(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer3(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer4(x)
                     return x
                 
+            input_size = 3
+            hidden_size = 16
+            output_size = 3  
             
                 
             # circularHinge
-            maxValueFx=0.776301559864187 #in N
-            maxValueFy=0.776301559864187 #in N
-            maxValueM=0.00284923912846732 #in Nm
+            maxValueFx=0.776301559864187*2 #in N
+            maxValueFy=0.776301559864187*2 #in N
+            maxValueM=0.00284923912846732*1.2 #in Nm
             maxValueVx=100 #in um
             maxValueVy=150 #in um
             maxValuePhi=25*np.pi/180 #in rad
         
-    
+        
         
         if config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:      
-            # Define the neural network model
-            input_size = 3
-            hidden_size = 16
-            output_size = 3  
             # Define the neural network model
             class NeuralNetwork(nn.Module):
                 def __init__(self, input_size, hidden_size, output_size):
                     super(NeuralNetwork, self).__init__()
                     self.layer1 = nn.Linear(input_size, hidden_size)
+                    self.relu = nn.ELU()
                     self.layer2 = nn.Linear(hidden_size, hidden_size)
+                    self.relu = nn.ReLU()
                     self.layer3 = nn.Linear(hidden_size, hidden_size)
-                    self.elu = nn.ELU()
+                    self.relu = nn.ELU()
                     self.layer4 = nn.Linear(hidden_size, output_size)
                 def forward(self, x):
                     x = self.layer1(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer2(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer3(x)
-                    x = self.elu(x)
+                    x = self.relu(x)
                     x = self.layer4(x)
                     return x
- 
+                
+            input_size = 3
+            hidden_size = 16
+            output_size = 3  
             # crossSpring
             maxValueFx=2 #in N
             maxValueFy=2 #in N
@@ -1879,126 +1914,104 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
             maxValueVx=100 #in um
             maxValueVy=150 #in um
             maxValuePhi=25*np.pi/180 #in rad   
+             
+        def map_OutputVectorBack(value):
+            Fx=value[0]
+            Fy=value[1]
+            M=value[2]
+            
+            min_value = -1.0
+            max_value = 1.0
+            new_min = -maxValueFx
+            new_max = maxValueFx      
+            FxMapped=map_to_range(Fx, min_value, max_value, new_min, new_max)
         
-        if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge or config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
-            def map_OutputVectorBack(value):
-                Fx=value[0]
-                Fy=value[1]
-                M=value[2]
-                
-                min_value = -1.0
-                max_value = 1.0
-                new_min = -maxValueFx
-                new_max = maxValueFx      
-                FxMapped=map_to_range(Fx, min_value, max_value, new_min, new_max)
+            min_value = -1.0
+            max_value = 1.0
+            new_min = -maxValueFy
+            new_max = maxValueFy       
+            FyMapped=map_to_range(Fy, min_value, max_value, new_min, new_max)    
             
-                min_value = -1.0
-                max_value = 1.0
-                new_min = -maxValueFy
-                new_max = maxValueFy       
-                FyMapped=map_to_range(Fy, min_value, max_value, new_min, new_max)    
-                
-                min_value = -1.0
-                max_value = 1.0
-                new_min = -maxValueM
-                new_max = maxValueM      
-                mMapped=map_to_range(M, min_value, max_value, new_min, new_max)        
-                
-                return [FxMapped, FyMapped, mMapped]
+            min_value = -1.0
+            max_value = 1.0
+            new_min = -maxValueM
+            new_max = maxValueM      
+            mMapped=map_to_range(M, min_value, max_value, new_min, new_max)        
             
-            def map_InputVector(value):
-                Vx=value[0]
-                Vy=value[1]
-                Phi=value[2]
-                
-                min_value = -maxValueVx
-                max_value = maxValueVx
-                new_min = -1.0
-                new_max = 1.0        
-                VxMapped=map_to_range(Vx, min_value, max_value, new_min, new_max)
+            return [FxMapped, FyMapped, mMapped]
+        
+        def map_InputVector(value):
+            Vx=value[0]
+            Vy=value[1]
+            Phi=value[2]
             
-                min_value = -maxValueVy
-                max_value = maxValueVy
-                new_min = -1.0
-                new_max = 1.0        
-                VyMapped=map_to_range(Vy, min_value, max_value, new_min, new_max)    
-                
-                min_value = -maxValuePhi
-                max_value = maxValuePhi
-                new_min = -1.0
-                new_max = 1.0        
-                PhiMapped=map_to_range(Phi, min_value, max_value, new_min, new_max)        
-                
-                return [VxMapped, VyMapped, PhiMapped]        
-    
-
-
-
-        if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge or config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
+            min_value = -maxValueVx
+            max_value = maxValueVx
+            new_min = -1.0
+            new_max = 1.0        
+            VxMapped=map_to_range(Vx, min_value, max_value, new_min, new_max)
+        
+            min_value = -maxValueVy
+            max_value = maxValueVy
+            new_min = -1.0
+            new_max = 1.0        
+            VyMapped=map_to_range(Vy, min_value, max_value, new_min, new_max)    
             
-            # Create an instance of the model (with the same architecture)
-            model = NeuralNetwork(input_size, hidden_size, output_size).double()
-            # Load the model's state dictionary from the file
+            min_value = -maxValuePhi
+            max_value = maxValuePhi
+            new_min = -1.0
+            new_max = 1.0        
+            PhiMapped=map_to_range(Phi, min_value, max_value, new_min, new_max)        
             
-            if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge:
-                model.load_state_dict(torch.load('pyTorchCircularHinge.pth'))
-                model.eval()
-            if config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
-                model.load_state_dict(torch.load('pyTorchCrossSpring.pth'))  
-                model.eval()
-
-            if config.simulation.neuralnetworkJIT:
-                # Extract weights and biases into numpy arrays
-                weights = {}
-                for name, param in model.named_parameters():
-                    weights[name] = param.detach().numpy()
-                
-                # Example of accessing the weights and biases
-                W1 = weights['layer1.weight']
-                b1 = weights['layer1.bias']
-                W2 = weights['layer2.weight']
-                b2 = weights['layer2.bias']
-                W3 = weights['layer3.weight']
-                b3 = weights['layer3.bias']
-                W4 = weights['layer4.weight']
-                b4 = weights['layer4.bias']
-                
-                # Define activation functions
-                # JIT compile the ELU function
-                @jit(nopython=True)
-                def elu(x, alpha=1.0):
-                    return np.where(x > 0, x, alpha * (np.exp(x) - 1))
-                
-                
-                # JIT compile the predict function
-                @jit(nopython=True)
-                def predict(x):
-                    # Layer 1: Linear + ELU
-                    x = np.dot(x, W1.T) + b1
-                    x = elu(x)
-                    
-                    # Layer 2: Linear + ReLU
-                    x = np.dot(x, W2.T) + b2
-                    x = elu(x)
-                    
-                    # Layer 3: Linear + ELU
-                    x = np.dot(x, W3.T) + b3
-                    x = elu(x)
-                    
-                    # Layer 4: Linear (Output layer, no activation)
-                    x = np.dot(x, W4.T) + b4
-                    
-                    return x          
+            return [VxMapped, VyMapped, PhiMapped]        
+        
         
         def UFforce(mbs, t, itemNumber, displacement, rotation, velocity, angularVelocity,
                         stiffness, damping, rotJ0, rotJ1, offset):
-  
-                # mbs.variables['counterForTesting']=mbs.variables['counterForTesting']+1
+                # k = stiffness #passed as list
+                # u = displacement
+                # q=np.zeros((6))
+                # q[0:3]=displacement[:]
+                # q[3:6]=rotation[:]
+
+
+                # cx = 40996.40177929759
+                # cy = 5899.28918022937
+                # ct = 0.006295515837712327
+            
+                # cxy = -9188.909873844023
+                # cxt = 5.028748265681435
+                # cyt = -0.15573908870458356
+            
+                # cyx = 0
+                # ctx = 0
+                # cty = 4.183050877058288
+
+                # F=np.zeros((6))
+                # k=np.zeros((6, 6))
+                # k[0,0]=cx
+                # k[1,1]=cy
+                # k[5,5]=ct
+
+                # k[0,1]=cxy
+                # k[0,5]=cxt
+                # k[1,5]=cyt
                 
-                if config.simulation.rigidBodySpringDamperNonlinearStiffnessCrossSpringPivot: 
-                    x0=displacement[0]
-                    x1=displacement[1]
-                    x2=rotation[2]                                                     
+                # k[1,0]=cyx 
+                # k[5,0]=ctx
+                # k[5,1]=cty
+                # F=np.dot(k,q)
+                mbs.variables['counterForTesting']=mbs.variables['counterForTesting']+1
+                
+                x0=displacement[0]
+                x1=displacement[1]
+                x2=rotation[2]
+                
+                # Fx=0
+                # Fy=0
+                # M=0
+                
+                if config.simulation.rigidBodySpringDamperNonlinearStiffnessCrossSpringPivot:                                                      
                     ############++++++++++++++++++++++++++++End Version of Cross Spring
                     para_fx_CS=[ 5.25715101e+05 ,-1.91270421e+01 , 1.07390097e-03 ,-1.57676916e+09,#CrossSpring_output9 nonlinear3
                       2.36104272e+05, -4.13776939e+08, -3.35276273e+01,  1.17969942e+05,
@@ -2026,22 +2039,18 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
                     
                     
                     var=[x0,x1,x2,x0*x0,x1*x0,x1*x1,x2*x0,x2*x1,x2*x2,
-                          x0*x0*x0,x0*x0*x1,x0*x0*x2,x0*x1*x1,x0*x1*x2,x0*x2*x2,
-                          x1*x0*x0,x1*x0*x1,x1*x0*x2,x1*x1*x1,x1*x1*x2,x1*x2*x2,
-                          x2*x0*x0,x2*x0*x1,x2*x0*x2,x2*x1*x1,x2*x1*x2,x2*x2*x2,1]
+                         x0*x0*x0,x0*x0*x1,x0*x0*x2,x0*x1*x1,x0*x1*x2,x0*x2*x2,
+                         x1*x0*x0,x1*x0*x1,x1*x0*x2,x1*x1*x1,x1*x1*x2,x1*x2*x2,
+                         x2*x0*x0,x2*x0*x1,x2*x0*x2,x2*x1*x1,x2*x1*x2,x2*x2*x2,1]
                     
                     Fx=VMult(var, para_fx_CS)
                     Fy=VMult(var, para_fy_CS)
                     M=VMult(var, para_m_CS)
-                    
-                    # Fx, Fy, M = calculate_forces(displacement, rotation, para_fx_CS, para_fy_CS, para_m_CS)
+
                 
                 if config.simulation.rigidBodySpringDamperNonlinearStiffnessCircularHinge:
-                    x0 = displacement[0]
-                    x1 = displacement[1]
-                    x2 = rotation[2]                    
-                    
-                    
+                    #%%++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    # ############++++++++++++++++++++++++++++End Version of notched hinge
                     para_fx_NH=[ 4.00493796e+04 ,-1.77632813e-01,  3.26495550e-06, -3.96579050e+07,
                       1.64359899e+03,  3.10235955e+06,  8.64913296e-02,  1.77662811e+04,
                      -1.06427744e+01, -6.42016208e+02,  1.49291473e+04,  1.37602813e+06,
@@ -2073,108 +2082,54 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
                     
                     Fx=VMult(var, para_fx_NH)
                     Fy=VMult(var, para_fy_NH)
-                    M=VMult(var, para_m_NH)                   
+                    M=VMult(var, para_m_NH)                     
                     
                     
                 if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge or config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
-                    # # print(t)
-                    # # Example usage:
-                    # # t = 12
-                    # # usebatch=(t>0.23 and t<0.24)
-                    # # usebatch=False
-                    
-                    # if mbs.variables['flag']:
-                    #     # usebatch= t>0.002
-                    #     usebatch= t>0.2
-                        
-                    # else:
-                    #     usebatch=False
-                    # usebatch=False
-                    # print(usebatch)
-                    # # usebatch
-                    # usebatch=False
-                    
-                    usebatch=False #set usebatch=False for noBatch
-                    
-                    
-                    if not usebatch:
-                        # uu = list(np.array(displacement[0:2])*1e6)+[rotation[2]]
-                        uu = [displacement[0]*1e6,displacement[1]*1e6,rotation[2]]
-                        X_test = map_InputVector(uu)
-                        
-                        if config.simulation.neuralnetworkJIT:
-                            predictions=predict(np.array(X_test))
-                        else:
-                            predictions=model(torch.tensor(X_test, dtype=torch.float64)).detach().numpy()
-                        
-                        output=map_OutputVectorBack(predictions)
-                    # output=[output[0],output[1],output[2]]
-                    # print(itemNumber,'single:',output)
-
-                    # else:
-                        # print('batch!')
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   
-                    
-                        # # Convert items in the list to integers (if they are not already)
-                        # rigid_body_spring_dampers = mbs.variables['rigidBodySpringDampers']
-                        # # Find the index of 'target' in 'rigidBodySpringDampers'
-                        # index = rigid_body_spring_dampers.index(itemNumber)
-                        # # Retrieve the corresponding predicted forces using the index
-                        # predicted_force = mbs.variables['predictedForces'][index]
-                        
-                        # predicted_force=map_OutputVectorBack(predicted_force)
-                        # output2=[predicted_force[0],predicted_force[1],-predicted_force[2]]
-
-                        # output=output2                    
-
-                    
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++                      
-                    
-                    # uu = list(np.array(displacement[0:2])*1e6)+[rotation[2]]
-                    # X_test = map_InputVector(uu)       
-                    # predictions=model(torch.tensor(X_test, dtype=torch.float64)) #.detach().numpy()
-                    # output=map_OutputVectorBack(predictions)
-                    
-                    
+                    uu = list(np.array(displacement[0:2])*1e6)+[rotation[2]]
+                    X_test = map_InputVector(uu)       
+                    predictions=model(torch.tensor(X_test, dtype=torch.float64)) #.detach().numpy()
+                    output=map_OutputVectorBack(predictions)
                     Fx=output[0]
                     Fy=output[1]
                     M=-output[2]
+                
                     
-                    
+                
                 return [Fx,Fy,0,0,0,M]  
         
         
+        if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge or config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
+            
+            # Create an instance of the model (with the same architecture)
+            model = NeuralNetwork(input_size, hidden_size, output_size).double()
+            # Load the model's state dictionary from the file
+            
+            if config.simulation.rigidBodySpringDamperNeuralNetworkCircularHinge:
+                model.load_state_dict(torch.load('pyTorchCircularHinge.pth'))
+                model.eval()
+            if config.simulation.rigidBodySpringDamperNeuralNetworkCrossSprings:
+                model.load_state_dict(torch.load('pyTorchCrossSpring.pth'))  
+                model.eval()
+            
         
-        
-        
-        
-
-
         # initialRotation=0
         #P3    
         initialRotation1 = RotationMatrixZ(alphaMean-psi +initialRotation)
         initialRotation2 = RotationMatrixZ(0+initialRotation*0)
-
-        mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR01,mBRR1],
-                                            stiffness=k,
-                                            damping=d,
+        
+        spring0=mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR01,mBRR1],
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation1,
                                             rotationMarker1=initialRotation2,                                        
                                             springForceTorqueUserFunction = UFforce
                                             ))
         
         #P4    
-        mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR02,mBRR3],
-                                            stiffness=k,
-                                            damping=d,
+        spring1=mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR02,mBRR3],
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation1,
                                             rotationMarker1=initialRotation2,                                        
                                             springForceTorqueUserFunction = UFforce
@@ -2185,32 +2140,32 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
         initialRotation1 = RotationMatrixZ(-alphaMean+psi -initialRotation )
         initialRotation2 = RotationMatrixZ(0+initialRotation-initialRotation)    
         mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR14,mBRR9],
-                                            stiffness=k,
-                                            damping=d,
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation1,
                                             rotationMarker1=initialRotation2,                                        
                                             springForceTorqueUserFunction = UFforce
-                                            ))
+                                            ))    
         
         
         #P8
         initialRotation1 = RotationMatrixZ(-alphaMean+psi -initialRotation)
         initialRotation2 = RotationMatrixZ(psi+initialRotation-initialRotation)      
         mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR13,mBRR11],
-                                            stiffness=k,
-                                            damping=d,
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation1,
                                             rotationMarker1=initialRotation2 ,                                       
                                             springForceTorqueUserFunction = UFforce
-                                            ))
+                                            ))   
                   
         
         #P5                         
         initialRotation1 = RotationMatrixZ( (-alphaMean/2+psi)-np.pi/2 -initialRotation/2)
         initialRotation2 = RotationMatrixZ( (alphaMean/2-np.pi/2) +initialRotation/2)         
         mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR15,mBRR65],
-                                            stiffness=k,
-                                            damping=d,
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation1,
                                             rotationMarker1=initialRotation2,                                 
                                             springForceTorqueUserFunction = UFforce
@@ -2220,30 +2175,23 @@ def SixBarLinkage(cSixBarLinkage, mbs, sideNumber, ID, nodeNumber):
         initialRotation1 = RotationMatrixZ( -(alphaMean-psi)/2 - np.pi/2 -initialRotation/2)
         initialRotation2 = RotationMatrixZ( (alphaMean-psi)/2 - np.pi/2  +initialRotation/2)    
         mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR12,mBRR4],
-                                            stiffness=k,
-                                            damping=d,
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation2,
                                             rotationMarker1=initialRotation1,                                          
                                             springForceTorqueUserFunction = UFforce
-                                            ))                                          
+                                            ))                                           
     
         #P7
         initialRotation1 = RotationMatrixZ(psi- (alphaMean-psi)/2 - np.pi/2 -initialRotation/2)
         initialRotation2 = RotationMatrixZ( (alphaMean-psi)/2 - np.pi/2 +initialRotation/2)
         mbs.AddObject(RigidBodySpringDamper(markerNumbers=[mBRR10,mBRR2],
-                                            stiffness=k,
-                                            damping=d,
+                                            stiffness=k*0,
+                                            damping=d*0,
                                             rotationMarker0=initialRotation2,
                                             rotationMarker1=initialRotation1,                                        
                                             springForceTorqueUserFunction = UFforce
-                                            ))  
-
-
-
-
-
-
-
+                                            ))    
         
 
     elif config.simulation.simplifiedLinksIdealRevoluteJoint2D:
@@ -2314,8 +2262,6 @@ def ATC(P1,cATC,mbs,P2=None,P3=None,sideLengths=None,P2Direction = None, connect
         c = sideLengths[0,0]
 
     
-
-    
     alphaAux=np.arccos((np.square(b)+np.square(c)-np.square(a))/(2*b*c))
     betaAux=np.arccos((np.square(a)+np.square(c)-np.square(b))/(2*a*c))
     gammaAux=np.arccos((np.square(a)+np.square(b)-np.square(c))/(2*a*b))
@@ -2364,28 +2310,67 @@ def ATC(P1,cATC,mbs,P2=None,P3=None,sideLengths=None,P2Direction = None, connect
 
     
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
-    
+        #add mass right side
+        adim =0.001     #x-dim of pendulum
+        bdim =0.001/2 #L/2+0.001    #y-dim of pendulum
+        graphicsX = {'type':'Line', 'color':[0.1,0.1,0.8,1], 'data':[-adim*0,-bdim,0, adim,-bdim,0, adim,bdim,0, -adim*0,bdim,0, -adim*0,-bdim,0]} #background
+        massRigid = config.lengths.weightBeams
+        inertiaRigid = config.lengths.inertiaBeams    
+        # massRigid = 1e-3
+        # inertiaRigid = massRigid/12*(2*a)**2
+        
+        
+        # node1 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(A)+[0.], initialVelocities=[0,0,0]))
+        # body1 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node1,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody1 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body1, localPosition=[0,0,0]))
+
+        # node11 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(A)+[0.], initialVelocities=[0,0,0]))
+        # body11 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node11,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody11 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body11, localPosition=[0,0,0]))
+        
         node1 = mbs.AddNode(NodePoint2D(referenceCoordinates=[0,0], initialCoordinates=A))
-        body1 = mbs.AddObject(MassPoint2D(physicsMass=10, nodeNumber=node1))
+        body1 = mbs.AddObject(MassPoint2D(physicsMass=1, nodeNumber=node1))
         mBody1 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=body1, localPosition=[0,0,0]))
-    
+        
+
+        
+        # node2 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(B)+[0.], initialVelocities=[0,0,0]))
+        # body2 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node2,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody2 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body2, localPosition=[0,0,0]))
+
+        # node22 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(B)+[0.], initialVelocities=[0,0,0]))
+        # body22 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node22,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody22 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body22, localPosition=[0,0,0]))    
+        
         node2 = mbs.AddNode(NodePoint2D(referenceCoordinates=[0,0], initialCoordinates=B))
-        body2 = mbs.AddObject(MassPoint2D(physicsMass=10, nodeNumber=node2))
+        body2 = mbs.AddObject(MassPoint2D(physicsMass=1, nodeNumber=node2))
         mBody2 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=body2, localPosition=[0,0,0]))
-    
+
+        
+        # node3 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(C)+[0.], initialVelocities=[0,0,0]))
+        # body3 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node3,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody3 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body3, localPosition=[0,0,0]))
+
+        # node33 = mbs.AddNode(Rigid2D(referenceCoordinates=[0,0,0],initialCoordinates=list(C)+[0.], initialVelocities=[0,0,0]))
+        # body33 = mbs.AddObject(RigidBody2D(physicsMass=massRigid, physicsInertia=inertiaRigid,nodeNumber=node33,visualization=VObjectRigidBody2D(graphicsData= [graphicsX])))
+        # mBody33 = mbs.AddMarker(MarkerBodyRigid(bodyNumber=body33, localPosition=[0,0,0]))   
+        
         node3 = mbs.AddNode(NodePoint2D(referenceCoordinates=[0,0], initialCoordinates=C))
-        body3 = mbs.AddObject(MassPoint2D(physicsMass=10, nodeNumber=node3))
+        body3 = mbs.AddObject(MassPoint2D(physicsMass=1, nodeNumber=node3))
         mBody3 = mbs.AddMarker(MarkerBodyPosition(bodyNumber=body3, localPosition=[0,0,0]))
-    
-    
+
+        # mbs.AddObject(RevoluteJoint2D(markerNumbers=[mBody1,mBody11],activeConnector=True))
+        # mbs.AddObject(RevoluteJoint2D(markerNumbers=[mBody2,mBody22],activeConnector=True))
+        # mbs.AddObject(RevoluteJoint2D(markerNumbers=[mBody3,mBody33],activeConnector=True))
+        
         La=a#-2*L1-2*L2
         Lb=b#-2*L1-2*L2
         Lc=c#-2*L1-2*L2 
         
         
-        #Lref=[Lc,La,Lb]
-        #Lref = [La,Lb,Lc]
-        #Lref = [La,Lc,Lb]
+        # Lref=[Lc,La,Lb]
+        # Lref = [La,Lb,Lc]
+        # Lref = [La,Lc,Lb]
         Lref = [Lc,Lb,La] 
         kPJ=cATC.ParametersATC.stiffness
         dPJ=cATC.ParametersATC.damping
@@ -2410,13 +2395,44 @@ def ATC(P1,cATC,mbs,P2=None,P3=None,sideLengths=None,P2Direction = None, connect
         jointsObjects = {}
     
         if config.simulation.useRevoluteJoint2DTower:
+            
             jointsObjects[1]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[0],mFC[1]],activeConnector=False))
             jointsObjects[2]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[2],mFC[3]],activeConnector=False))
             jointsObjects[3]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[4],mFC[5]],activeConnector=False))
+            
+            
+            
+            # jointsObjects[1]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[0], mFC[1]], 
+            #                             constrainedAxes=[1,1,0,0,0,0],
+            #                             activeConnector=False,
+            #                             visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))            
+            
+            # jointsObjects[2]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[2], mFC[3]], 
+            #                             constrainedAxes=[1,1,0,0,0,0],
+            #                             activeConnector=False,
+            #                             visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))                
+            
+            # jointsObjects[3]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[4], mFC[5]], 
+            #                             constrainedAxes=[1,1,0,0,0,0],
+            #                             activeConnector=False,
+            #                             visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))              
+            
+            # jointsObjects[1]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[0],mFC[1]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
+            # jointsObjects[2]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[2],mFC[3]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
+            # jointsObjects[3]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[4],mFC[5]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
+
+
+
+            
         else:
             jointsObjects[1]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[0],mFC[1]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
             jointsObjects[2]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[2],mFC[3]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
             jointsObjects[3]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[4],mFC[5]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0]))
+
+
+        # for i in range(round(len(mFPJ)/3)+1):
+        #     mbs.AddObject(PrismaticJoint2D(markerNumbers=[mFPJ[i*2],mFPJ[i*2+1]],axisMarker0=[1.,0.,0.],normalMarker1=[0.,-1.,0.], constrainRotation=True))
+
 
 
         SensorA = mbs.AddSensor(SensorMarker(markerNumber=mBody1, outputVariableType=exu.OutputVariableType.Position))
@@ -2443,6 +2459,9 @@ def ATC(P1,cATC,mbs,P2=None,P3=None,sideLengths=None,P2Direction = None, connect
         cATC.SixBarLinkage[1].centerOfRotation = A
         cATC.SixBarLinkage[2].centerOfRotation = B
         cATC.SixBarLinkage[3].centerOfRotation = C
+
+
+
         
     else:
         cATC.SixBarLinkage[1].centerOfRotation=A
@@ -2477,9 +2496,26 @@ def ATC(P1,cATC,mbs,P2=None,P3=None,sideLengths=None,P2Direction = None, connect
         jointsObjects = {}
     
         if config.simulation.useRevoluteJoint2DTower:
-            jointsObjects[1]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[0],mFC[1]],activeConnector=False))
-            jointsObjects[2]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[2],mFC[3]],activeConnector=False))
-            jointsObjects[3]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[4],mFC[5]],activeConnector=False))
+            # jointsObjects[1]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[0],mFC[1]],activeConnector=False))
+            # jointsObjects[2]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[2],mFC[3]],activeConnector=False))
+            # jointsObjects[3]=mbs.AddObject(RevoluteJoint2D(markerNumbers=[mFC[4],mFC[5]],activeConnector=False))
+
+            
+            jointsObjects[1]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[0], mFC[1]], 
+                                        constrainedAxes=[1,1,0,0,0,0],
+                                        activeConnector=False,
+                                        visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))            
+            
+            jointsObjects[2]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[2], mFC[3]], 
+                                        constrainedAxes=[1,1,0,0,0,0],
+                                        activeConnector=False,
+                                        visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))                
+            
+            jointsObjects[3]=mbs.AddObject(GenericJoint(markerNumbers=[mFC[4], mFC[5]], 
+                                        constrainedAxes=[1,1,0,0,0,0],
+                                        activeConnector=False,
+                                        visualization=VObjectJointGeneric(axesRadius=0.5e-4, axesLength=0.5e-3)))                
+            
         else:
             jointsObjects[1]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[0],mFC[1]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0],visualization=VNodePointGround(show=False)))
             jointsObjects[2]=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mFC[2],mFC[3]],activeConnector=False,stiffness=[kk,kk,0],damping=[dd,dd,0],visualization=VNodePointGround(show=False)))
@@ -2586,7 +2622,6 @@ def getActuators(xpos, ypos, nrAct, nx,ny, thisdict): # xpos=[1, nx],ypos=[1, ny
     actuatorsList=[]
     LrefList=[]
 
-                            
     for j in range(ypos[1]-ypos[0]+1):
         for i in range(xpos[1]-xpos[0]+1):
             actuatorsList+=[springDamperDriveObjects[nrAct::6][(ypos[0]+j-1)*nx + xpos[0]-1+i   ]]           
@@ -2629,11 +2664,7 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
     adeMoveList defines Start Lengths
 
     """
-    
 
-    
-    
-    
     
     ADE = {}
     strokeOffset = config.lengths.L0 
@@ -2649,12 +2680,19 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
     for ID in adeNodes.elements:
         adeIDList.append(ID)
 
-    for i in range(1,config.simulation.numberOfBoundaryPoints):
-        ADE[-i],mbs = AddBoundary(mbs)
+
+    #add springs for connection to ground toDo: for genericJoints there should be a rigid body connected to ground?
+    #used when setMeshWithCoordinateConst is False
+    #added dummy springs to the system to be connected/disconnected later on to the ATCs
+    #ATCs with negativ indices are used for connection to ground
+    if not config.simulation.setMeshWithCoordinateConst:
+        for i in range(1,config.simulation.numberOfBoundaryPoints): 
+            ADE[-i],mbs = AddBoundary(mbs)
 
 
+    #
     for ID in adeNodes.elements:
-        if adeIDList.index(ID) != 0:   #Setting Point P1 and P2 of the ADEs except the First
+        if adeIDList.index(ID) != 0:   #setting Point P1 and P2 of the ADEs except the First
             Side = adeNodes.connectionList[ID][0][1]
             Nodes = adeNodes.GetNodeOfElementSide(ID,Side)
             if adeNodes != None:
@@ -2665,6 +2703,10 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
             Side = adeNodes.GetSideOfElement(ID,adeNodes.baseNodes)
             Nodes = adeNodes.GetNodeOfElementSide(ID,Side)
         #strokes = rotateMatrixRow(strokeADE[ID],Side-1)     # Rotating the strokes, so they correlate to the Sides AB,BC,CA
+
+
+
+
         
         cADE=CATC()
         setNodes = set(Nodes)
@@ -2681,62 +2723,55 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
             else:
                 strokeADE[ID] = np.matrix([0,0,0])+strokeOffset
             [ADE[ID],mbs]=ATC(P1,cADE,mbs,sideLengths=strokeADE[ID],P2Direction = P2,connectedSide = Side, ID=ID,nodeNumber=adeNodes.elements)
-            # for localIndex, adeNode in enumerate(adeNodes.elements[ID]):
-            #     mbsNodeID = ADE[ID]["cATC"].nodesATC[localIndex]
             connectors[ID] = ADE[ID]["connectors"]
         else:
             [ADE[ID],mbs]=ATC(adeNodes.nodeDefinition[Nodes[0]],cADE,mbs,P2 = adeNodes.nodeDefinition[Nodes[1]],P3 = adeNodes.nodeDefinition[next(iter(notinList))],connectedSide = Side, ID=ID,nodeNumber=adeNodes.elements)
-            # for localIndex, adeNode in enumerate(adeNodes.elements[ID]):
-            #     mbsNodeID = ADE[ID]["cATC"].nodesATC[localIndex]
-                # nodeNumber = 14
-                # if adeNode == nodeNumber:
-                #     print('Node', nodeNumber, 'has node Number', mbsNodeID, 'in mbs')
             connectors[ID] = ADE[ID]["connectors"]
 
-        if adeIDList.index(ID) == 0:   #Storing Points for First ADE
+
+
+
+
+        if adeIDList.index(ID) == 0: #Storing Points for First ADE to connect to Ground
             if adeNodes.elements[ID][0] not in adeNodes.nodeDefinition:
                 adeNodes.nodeDefinition[adeNodes.elements[ID][0]]= deepcopy(ADE[ID]["cATC"].SixBarLinkage[1].centerOfRotation)
                 adeNodes.nodeDefinition[adeNodes.elements[ID][1]]= deepcopy(ADE[ID]["cATC"].SixBarLinkage[2].centerOfRotation)
                 adeNodes.nodeDefinition[adeNodes.elements[ID][2]]= deepcopy(ADE[ID]["cATC"].SixBarLinkage[3].centerOfRotation)
             
-            boundaryNodes=[ADE[ID].get('cATC').nodesATC[(Side-1)*2]]+[ADE[ID].get('cATC').nodesATC[(Side-1)*2+1]]
+            # boundaryNodes=[ADE[ID].get('cATC').nodesATC[(Side-1)*2]]+[ADE[ID].get('cATC').nodesATC[(Side-1)*2+1]]
             
-            if config.simulation.setMeshWithCoordinateConst:
-                nGround=mbs.AddNode(PointGround(referenceCoordinates=ADE[ID].get('cATC').coordinatePointsATC[(Side-1)*12]+[0], visualization=VNodePointGround(show=True)))
-                mCoordinateGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0)) #gives always 0 displacement
+            # add connections in main-program with ConnectADE/DisconnectADE
+            # if config.simulation.setMeshWithCoordinateConst:
+            #     nGround=mbs.AddNode(PointGround(referenceCoordinates=ADE[ID].get('cATC').coordinatePointsATC[(Side-1)*12]+[0], visualization=VNodePointGround(show=True)))
+            #     mCoordinateGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0)) #gives always 0 displacement
                 
-                cooridnateConst=[]
+            #     cooridnateConst=[]
                 
-                for i in range(round(len(boundaryNodes)/2)):
-                    boundaryNodes2=[boundaryNodes[0]]
-                    boundaryNodes=[boundaryNodes[1]]
+            #     for i in range(round(len(boundaryNodes)/2)):
+            #         boundaryNodes2=[boundaryNodes[0]]
+            #         boundaryNodes =[boundaryNodes[1]]
                     
-                for i in boundaryNodes:
-                    mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
-                    mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=1)) #y-cooridnate of node
+            #     for i in boundaryNodes:
+            #         mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
+            #         mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=1)) #y-cooridnate of node
                     
-                    if not config.simulation.massPoints2DIdealRevoluteJoint2D:
-                        mCoordinateRigid7rot = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=2)) #phi-cooridnate of node                  
+            #         if not config.simulation.massPoints2DIdealRevoluteJoint2D:
+            #             mCoordinateRigid7rot = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=2)) #phi-cooridnate of node                  
                     
-                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7x], offset = 0))]
-                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
-                    if not config.simulation.massPoints2DIdealRevoluteJoint2D:
-                        cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7rot], offset = 0))]
+            #         cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7x], offset = 0))]
+            #         cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
+                    
+            #         if not config.simulation.massPoints2DIdealRevoluteJoint2D:
+            #             cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7rot], offset = 0))]
 
-                if config.simulation.massPoints2DIdealRevoluteJoint2D:
-                    boundaryNodes2=boundaryNodes2[0]
-                    # mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
-                    mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=boundaryNodes2, coordinate=1)) #y-cooridnate of node
-                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
-
-
-
+            #     if config.simulation.massPoints2DIdealRevoluteJoint2D:
+            #         boundaryNodes2=boundaryNodes2[0]
+            #         mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
+            #         mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=boundaryNodes2, coordinate=1)) #y-cooridnate of node
+            #         cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
 
 
-
-
-
-        else:                       #Storing Points for ADEs except the First
+        else:  #Storing Points for ADEs except the First
             Nodes = adeNodes.GetNodeOfElementSide(ID,adeNodes.connectionList[ID][0][1])
             setNodes = set(Nodes)
             setNodesOfID = set(adeNodes.elements[ID])
@@ -2755,6 +2790,7 @@ def GenerateMesh(adeNodes,mbs,P1 =np.array([0,0]),P2 = np.array([1,0]),adeMoveLi
        #          ConnectADE(mbs,ADE,adeNodes.connectionList[ID][i])
        #  ########################################################################         
         # refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
+        
         for i in range(3):
             setActuatorLength([ADE[ID].get('springDamperDriveObjects')[i]], [ADE[ID].get('Lref')[i]], 1, mbs) # actuators to set, leftDrivesLref, factorMultipliedToLength Chi
         
@@ -2805,30 +2841,38 @@ def ChangeActorStiffnessStartingNode(mbs,t, itemNumber, positionInteractivNode):
     
     markerNumbers = mbs.GetObjectParameter(itemNumber,'markerNumbers')
     
-    positionInteractivNode = list(positionInteractivNode)[:2]
-    # positionInteractivNode=list(mbs.GetSensorValues(mbs.variables['nodeToChangeActorStiffness']))
-    # positionInteractivNode=mbs.GetSensorValues(ADE[3]['sensors'][0])
-    # positionInteractivNode=[0.4597,0.3958,0]
-    positionActor = mbs.GetNodeParameter(mbs.GetObjectParameter(mbs.GetMarkerParameter(markerNumbers[0],'bodyNumber'),'nodeNumber'),'referenceCoordinates')
+    positionInteractivNode = list(positionInteractivNode)[:2]    
+    positionActor1 = mbs.GetMarkerOutput(markerNumbers[0],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current)
+    positionActor2 = mbs.GetMarkerOutput(markerNumbers[1],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current)
+    
+    positionActor = positionActor1+(positionActor2-positionActor1)/2
+    
     positionActor=positionActor[0:2]
     relativPosition = LA.norm(np.array(positionInteractivNode)-np.array(positionActor))
     
     stiffness = CalculateActorStiffnessStartingNode(relativPosition,mbs,itemNumber)
-    
+        
     oldStiffness=mbs.GetObjectParameter(itemNumber,'stiffness')
     mbs.SetObjectParameter(itemNumber,'stiffness',oldStiffness+stiffness)
+
+
+    
+
+    
+    
     # print('actor:',itemNumber,'stiffness:',stiffness)
     
 def CalculateActorStiffnessStartingNode(relativPosition,mbs,itemNumber):
     """
     Function to Calculate Actor Stiffness by relative Position and Actor Length 
     """
-    stiffnessFactor = 1
+    stiffnessFactor = mbs.GetObjectParameter(itemNumber,'stiffness')
     # refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
     
     # config.simulation.massPoints2DIdealRevoluteJoint2D = True
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
         refLength = (config.lengths.L0) 
+        # refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))  
     else:
         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))  
         
@@ -2839,17 +2883,20 @@ def CalculateActorStiffnessStartingNode(relativPosition,mbs,itemNumber):
     L2=config.lengths.L2
     
 
-    stiffness = stiffnessFactor*relativPosition**2
-    if stiffness >= 1e4:
-        stiffness = 1e4
-    
-    if config.simulation.constrainActorLength:
-        Lmax = config.lengths.maxStroke
-        Lmin = config.lengths.minStroke
-        
-        if (actorLength <= Lmin) or (actorLength >= Lmax ):
-            stiffness = stiffness*1e4
+    stiffness = stiffnessFactor*relativPosition**4
+    if stiffness >= 1e2:
+        stiffness = 1e2
 
+    
+    # if config.simulation.constrainActorLength:
+    #     Lmax = config.lengths.maxStroke
+    #     Lmin = config.lengths.minStroke
+        
+    #     if (actorLength <= Lmin) or (actorLength >= Lmax ):
+    #         stiffness = 1e4 #stiffness*1e4
+    
+    # print('actor:',itemNumber,'relativPosition',relativPosition,'stiffness:',stiffness)
+    
     # print('stiffness:',stiffness)
     return stiffness
 
@@ -2993,8 +3040,7 @@ def UserFunctionDriveRefLen1(t, u1, u2):
     """
     if config.simulation.SolveDynamic:
         # dT = abs(u2-u1)/(config.com.actorSpeed)      #end time
-        dT = abs(u2-u1)/(config.com.actorSpeed)*1000
-        # dT = config.simulation.endTime
+        dT = config.simulation.endTime
     else:
         dT = 1
         
@@ -3081,7 +3127,7 @@ def addContactSpheres(gContact,ADE,sidesOfNodes,sizeOfSpheres,contactStiffness,d
         j+=1
         
         gContact.AddSphereWithMarker(markerNumbersFirstADE[0], radius=sizeOfSpheres, contactStiffness=contactStiffness, contactDamping=dContact, frictionMaterialIndex=frictionMaterialIndex)
-        gContact.AddSphereWithMarker(markerNumbersFirstADE[1], radius=sizeOfSpheres, contactStiffness=contactStiffness, contactDamping=dContact, frictionMaterialIndex=MaterialIndex) 
+        gContact.AddSphereWithMarker(markerNumbersFirstADE[1], radius=sizeOfSpheres, contactStiffness=contactStiffness, contactDamping=dContact, frictionMaterialIndex=frictionMaterialIndex) 
         
 
 
@@ -3100,27 +3146,133 @@ def DisconnectADE(mbs,ADE,connectionEntry):
     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersFirstADE[1]])
     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersSecondADE[1]])
 
-    if connectionEntry[2] == -1 and config.simulation.setMeshWithCoordinateConst==False:
-        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'offset',[0,0,0])
-        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'offset',[0,0,0])
+    # if connectionEntry[2] == -1 and config.simulation.setMeshWithCoordinateConst==False:
+    #     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'offset',[0,0,0])
+    #     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'offset',[0,0,0])
    
 def ConnectADE(mbs,ADE,connectionEntry):
     """
     Connecting ADE with new connection Entry 
+    connectionEntry = [ID1,SideNr,ID2,SideNr]
+    ID2 <= -1 means connection to ground
     """
-
-    markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
-    markerNumbersSecondADE = ADE[connectionEntry[2]].get('cATC').markersForConnectorsATC[(connectionEntry[3]-1)*2:(connectionEntry[3]-1)*2+2]
-
-    mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersSecondADE[1]])
-    mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersFirstADE[1]])
+    mbs.Assemble()
+    #connect ADEs (ideal when useRevoluteJoint2D==True, flexible when useRevoluteJoint2D==False)
+    if connectionEntry[2]>-1:
+        markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
+        markerNumbersSecondADE = ADE[connectionEntry[2]].get('cATC').markersForConnectorsATC[(connectionEntry[3]-1)*2:(connectionEntry[3]-1)*2+2]
     
-    mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',True)
-    mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',True)
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersSecondADE[1]])
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersFirstADE[1]])
+        
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',True)
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',True)
 
-    if connectionEntry[2] <= -1 and config.simulation.setMeshWithCoordinateConst==False:
-        #offset1 = (np.array(mbs.GetNodeParameter(mbs.GetObjectParameter(mbs.GetMarkerParameter(markerNumbersFirstADE[0], 'bodyNumber'), 'nodeNumber'),'referenceCoordinates'))-np.array(mbs.GetMarkerParameter(markerNumbersFirstADE[0], 'localPosition')))-np.array(mbs.GetMarkerOutput(markerNumbersSecondADE[1],exu.OutputVariableType.Position))
-        #offset2 = np.array(mbs.GetMarkerOutput(markerNumbersSecondADE[0],exu.OutputVariableType.Position)) - (np.array(mbs.GetNodeParameter(mbs.GetObjectParameter(mbs.GetMarkerParameter(markerNumbersFirstADE[1], 'bodyNumber'), 'nodeNumber'),'referenceCoordinates'))+np.array(mbs.GetMarkerParameter(markerNumbersFirstADE[1], 'localPosition')))
+
+    #ideal boundary with coordinateConst (setMeshWithCoordinateConst==True)
+    if config.simulation.setMeshWithCoordinateConst:
+        
+        if connectionEntry[2] <= -1:
+            markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
+            mbs.Assemble()
+            offset1 = np.array(mbs.GetMarkerOutput(markerNumbersFirstADE[1],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current))
+            offset2 = np.array(mbs.GetMarkerOutput(markerNumbersFirstADE[0],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current))
+            
+            xVal1=offset1[0]
+            yVal1=offset1[1]
+
+            xVal2=offset2[0]
+            yVal2=offset2[1]
+            
+            vector2=np.array([1,0,0])
+            # Calculate the dot product
+            dot_product = np.dot(offset1, vector2)
+            
+            # Calculate the magnitudes of the vectors
+            magnitude_offset1 = np.linalg.norm(offset1)
+            magnitude_vector2 = np.linalg.norm(vector2)
+            
+            # Calculate the cosine of the angle
+            # cos_theta = dot_product / (magnitude_offset1 * magnitude_vector2)
+            
+            # Calculate the angle in radians
+            theta_radians = 0 #np.arccos(cos_theta)
+        
+        
+        if connectionEntry[2] == -1:
+            ID=connectionEntry[0]
+            Side=connectionEntry[1]
+            
+            boundaryNodes=[ADE[ID].get('cATC').nodesATC[(Side-1)*2+1]]
+            
+            if config.simulation.massPoints2DIdealRevoluteJoint2D==True:
+                nGround=mbs.AddNode(NodePointGround(referenceCoordinates = [0,0,0.]))
+            else:
+                nGround=mbs.AddNode(NodePointGround(referenceCoordinates = [0,0,0.]))
+                
+                
+            mCoordinateGround=mbs.AddMarker(MarkerNodeCoordinate(nodeNumber= nGround, coordinate = 0))
+                    
+            cooridnateConst=[]
+                 
+            for i in boundaryNodes:
+                mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
+                mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=1)) #y-cooridnate of node
+                
+                if not config.simulation.massPoints2DIdealRevoluteJoint2D:
+                    mCoordinateRigid7rot = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=2)) #phi-cooridnate of node                  
+                
+                if config.simulation.massPoints2DIdealRevoluteJoint2D==True:
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7x], offset = xVal1))]
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = yVal1))]
+                else:
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7x], offset = 0))]
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
+                
+                if not config.simulation.massPoints2DIdealRevoluteJoint2D:
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7rot], offset = theta_radians))]
+    
+            if config.simulation.massPoints2DIdealRevoluteJoint2D:           
+                boundaryNodes1=[ADE[ID].get('cATC').nodesATC[(Side-1)*2+1]]
+                boundaryNodes2=[ADE[ID].get('cATC').nodesATC[(Side-1)*2]]
+                for i in boundaryNodes2:                    
+                    mCoordinateRigid7x = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #y-cooridnate of node
+                    mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=1)) #y-cooridnate of node
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7x], offset = xVal2))]
+                    cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = yVal2))]
+                
+    
+        # if connectionEntry[2] == -2:
+        #     ID=connectionEntry[0]
+        #     Side=connectionEntry[1]
+            
+        #     boundaryNodes=[ADE[ID].get('cATC').nodesATC[(Side-1)*2]]#+[ADE[ID].get('cATC').nodesATC[(Side-1)*2+1]]
+            
+        #     nGround=mbs.AddNode(NodePointGround(referenceCoordinates = [0.,0.,0.]))
+        #     mCoordinateGround=mbs.AddMarker(MarkerNodeCoordinate(nodeNumber= nGround, coordinate = 0))
+                    
+        #     cooridnateConst=[]
+    
+        #     for i in boundaryNodes:
+        #         mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=0)) #x-cooridnate of node
+        #         cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
+        #         mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=1)) #x-cooridnate of node
+        #         cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
+        #         # mCoordinateRigid7y = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=i, coordinate=2)) #x-cooridnate of node
+        #         # cooridnateConst += [mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordinateGround,mCoordinateRigid7y], offset = 0))]
+        
+        
+        
+    #boundary with springDamper (setMeshWithCoordinateConst==False)
+    if connectionEntry[2] <= -1 and config.simulation.setMeshWithCoordinateConst==False: 
+        markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
+        markerNumbersSecondADE = ADE[connectionEntry[2]].get('cATC').markersForConnectorsATC[(connectionEntry[3]-1)*2:(connectionEntry[3]-1)*2+2]
+    
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersSecondADE[1]])
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersFirstADE[1]])
+        
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',True)
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',True)
         
         offset1 = np.array(mbs.GetMarkerOutput(markerNumbersFirstADE[0],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current))-np.array(mbs.GetMarkerOutput(markerNumbersSecondADE[1],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current))
         offset2 = np.array(mbs.GetMarkerOutput(markerNumbersSecondADE[0],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current)) - np.array(mbs.GetMarkerOutput(markerNumbersFirstADE[1],exu.OutputVariableType.Position,configuration = exu.ConfigurationType.Current))
@@ -3129,6 +3281,48 @@ def ConnectADE(mbs,ADE,connectionEntry):
         offset2[2] = 0
         mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'offset',-offset1)
         mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'offset',-offset2)
+
+def ConnectADELoop(mbs,ADE,connectionEntry):
+    """
+    Connecting ADE with new connection Entry 
+    connectionEntry = [ID1,SideNr,ID2,SideNr]
+    ID2 <= -1 means connection to ground
+    """
+    
+    if connectionEntry[2]>-1:
+        markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
+        markerNumbersSecondADE = ADE[connectionEntry[2]].get('cATC').markersForConnectorsATC[(connectionEntry[3]-1)*2:(connectionEntry[3]-1)*2+2]
+    
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersSecondADE[1]])
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersFirstADE[1]])
+        
+        mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',True)
+        mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',False)    
+        
+    
+    
+    
+    
+    # if connectionEntry[2]>-1:
+    #     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',False)
+    #     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',False)
+        
+    #     markerNumbersFirstADE = ADE[connectionEntry[0]].get('cATC').markersForConnectorsATC[(connectionEntry[1]-1)*2:(connectionEntry[1]-1)*2+2]
+    #     markerNumbersSecondADE = ADE[connectionEntry[2]].get('cATC').markersForConnectorsATC[(connectionEntry[3]-1)*2:(connectionEntry[3]-1)*2+2]
+    
+    #     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'markerNumbers',[markerNumbersSecondADE[0],markerNumbersFirstADE[1]])
+    #     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'markerNumbers',[markerNumbersFirstADE[0],markerNumbersSecondADE[1]])
+        
+    #     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'constrainedAxes',[1,0,0,0,0,0])
+    #     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'constrainedAxes',[0,0,0,0,0,1])
+        
+    #     mbs.SetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector',True)
+    #     mbs.SetObjectParameter(ADE[connectionEntry[2]]["connectors"][connectionEntry[3]],'activeConnector',True)
+        
+        # mbs.Assemble()
+
+        # mbs.GetObjectParameter(ADE[connectionEntry[0]]["connectors"][connectionEntry[1]],'activeConnector')
+
 
 def AddBoundary(mbs,P1 =np.array([0,0]),P2 = np.array([1,0])):
 
@@ -3140,7 +3334,6 @@ def AddBoundary(mbs,P1 =np.array([0,0]),P2 = np.array([1,0])):
         "viconMeasuringPoints": [],
         "connectors":[],
         "sensors": []
- 
        }
 
     if len(P1) == 2:
@@ -3148,16 +3341,19 @@ def AddBoundary(mbs,P1 =np.array([0,0]),P2 = np.array([1,0])):
     if len(P2) == 2:
         P2 = np.append(P2,[0])
     
-    nGround=mbs.AddNode(PointGround(referenceCoordinates=P1, visualization=VNodePointGround(show=False)))
-    nGround2=mbs.AddNode(PointGround(referenceCoordinates=P2, visualization=VNodePointGround(show=False)))
-    
+    nGround=mbs.AddNode(PointGround(referenceCoordinates=P1, visualization=VNodePointGround(show=True)))
+    nGround2=mbs.AddNode(PointGround(referenceCoordinates=P2, visualization=VNodePointGround(show=True)))
 
     mCoordinateGround = mbs.AddMarker(MarkerNodePosition(nodeNumber=nGround))
     mCoordinateGround2 = mbs.AddMarker(MarkerNodePosition(nodeNumber=nGround2))  
-                
     
-
-    jointsObjects=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mCoordinateGround,mCoordinateGround2], visualization=VNodePointGround(show=False),activeConnector=False,stiffness=[config.lengths.stiffnessBoundary,config.lengths.stiffnessBoundary,0],damping=[config.lengths.dampingBoundary,config.lengths.dampingBoundary,0]))
+    
+    
+    jointsObjects=mbs.AddObject(CartesianSpringDamper(markerNumbers=[mCoordinateGround,mCoordinateGround2], 
+                                                      visualization=VNodePointGround(show=True),
+                                                      activeConnector=True,
+                                                      stiffness=[config.lengths.stiffnessBoundary,config.lengths.stiffnessBoundary,0],
+                                                      damping=[config.lengths.dampingBoundary,config.lengths.dampingBoundary,0]))
 
     thisADE['cATC'].markersForConnectorsATC=[mCoordinateGround,mCoordinateGround2]
     thisADE['connectors'] = {1:jointsObjects}
@@ -3296,126 +3492,126 @@ def addBoundaryWithNodesInRectangle(adeNodes,nodesInRectangle):
         indexID=indexID-1
     
     
-# if __name__ == "__main__":
-#     ##+++++++++++++++++++++++++++++++++++++++
-#     ## Initialization of Module
-#     config.init()
-#     logging.info('Starte Simulations Module')
+if __name__ == "__main__":
+    ##+++++++++++++++++++++++++++++++++++++++
+    ## Initialization of Module
+    config.init()
+    logging.info('Starte Simulations Module')
 
-#     client = wf.WebServerClient()
-#     SC = exu.SystemContainer()
-#     mbs = SC.AddSystem()
+    client = wf.WebServerClient()
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem()
 
-#     computeDynamic=True
+    computeDynamic=True
     
-#     ##simulation options
-#     displaySimulation=config.simulation.displaySimulation
+    ##simulation options
+    displaySimulation=config.simulation.displaySimulation
     
-#     ##++++++++++++++++++++++++++++++
-#     ##ANIMATIONS
-#     ##make images for animations (requires FFMPEG):
+    ##++++++++++++++++++++++++++++++
+    ##ANIMATIONS
+    ##make images for animations (requires FFMPEG):
     
 
 
-#     startSimulation = False
-#     while not startSimulation:
+    startSimulation = False
+    while not startSimulation:
         
-#         try:
-#             ##+++++++++++++++++++++++++++++++++++++++
-#             ## Checking if to end the Programm
+        try:
+            ##+++++++++++++++++++++++++++++++++++++++
+            ## Checking if to end the Programm
 
-#             if json.loads(client.Get('EndProgram')):
-#                 os._exit(0)
-#             ##+++++++++++++++++++++++++++++++++++++++
-#             ## Initialization of Variables
+            if json.loads(client.Get('EndProgram')):
+                os._exit(0)
+            ##+++++++++++++++++++++++++++++++++++++++
+            ## Initialization of Variables
 
-#             mbs.variables['springDamperDriveObjects']=[] #all drives that need to be changed over time
-#             mbs.variables['springDamperDriveObjectsFactor']=[] #factor for drives: depends on distance to neutral fiber
-#             mbs.variables['LrefExt']=[]
-#             mbs.variables['Connectors'] = []
-#             mbs.variables['Vertices'] = []
-#             mbs.variables['VertexLoads'] = []
-#             mbs.variables['TimeStamp'] = 0
-#             mbs.variables['nextTimeStamp'] = False
-#             mbs.variables['Sensors'] = []
-#             mbs.variables['activateMouseDrag'] = False
-#             mbs.variables['driveToPoint'] = False
-#             mbs.variables['line'] = 0
-#             mbs.variables['MarkersConnectors']=[]
-#             mbs.variables['MarkersConnectorsLoads']=[]
-#             if config.simulation.activateWithKeyPress:
-#                 mbs.variables['activateMouseDrag'] = False
+            mbs.variables['springDamperDriveObjects']=[] #all drives that need to be changed over time
+            mbs.variables['springDamperDriveObjectsFactor']=[] #factor for drives: depends on distance to neutral fiber
+            mbs.variables['LrefExt']=[]
+            mbs.variables['Connectors'] = []
+            mbs.variables['Vertices'] = []
+            mbs.variables['VertexLoads'] = []
+            mbs.variables['TimeStamp'] = 0
+            mbs.variables['nextTimeStamp'] = False
+            mbs.variables['Sensors'] = []
+            mbs.variables['activateMouseDrag'] = False
+            mbs.variables['driveToPoint'] = False
+            mbs.variables['line'] = 0
+            mbs.variables['MarkersConnectors']=[]
+            mbs.variables['MarkersConnectorsLoads']=[]
+            if config.simulation.activateWithKeyPress:
+                mbs.variables['activateMouseDrag'] = False
             
-#             mbs.variables['xValue']=[]
+            mbs.variables['xValue']=[]
 
-#             ##+++++++++++++++++++++++++++++++++++++++
-#             ## Getting Variables from Webserver
-#             adeNodes =  pickle.loads(client.Get('adeNodes'))
-#             adeIDs = []
+            ##+++++++++++++++++++++++++++++++++++++++
+            ## Getting Variables from Webserver
+            adeNodes =  pickle.loads(client.Get('adeNodes'))
+            adeIDs = []
 
-#             if type(adeNodes) == dict:
-#                 for ID in adeNodes[0].elements:
-#                         adeIDs.append(ID)
-#             else:
-#                 for ID in adeNodes.elements:
-#                         adeIDs.append(ID)
+            if type(adeNodes) == dict:
+                for ID in adeNodes[0].elements:
+                        adeIDs.append(ID)
+            else:
+                for ID in adeNodes.elements:
+                        adeIDs.append(ID)
 
-#             startSimulation = json.loads(client.Get('StartSimulation'))
+            startSimulation = json.loads(client.Get('StartSimulation'))
 
 
 
-#             if config.simulation.useMoveList:
-#                 adeMoveList = df.adeMoveList()
-#                 adeMoveList.FromJson(client.Get('MoveList'))
+            if config.simulation.useMoveList:
+                adeMoveList = df.adeMoveList()
+                adeMoveList.FromJson(client.Get('MoveList'))
 
-#             ##+++++++++++++++++++++++++++++++++++++++
-#             ## Starting preparations for Simulation
+            ##+++++++++++++++++++++++++++++++++++++++
+            ## Starting preparations for Simulation
 
-#             if startSimulation and (type(adeNodes) == df.ElementDefinition or type(adeNodes) == dict):
-#                 if config.simulation.useMoveList: 
-#                     ADE, mbs = GenerateMesh(adeNodes,mbs,adeMoveList = adeMoveList)         #Generating Mesh with Movelist
-#                 else:
-#                     ADE, mbs = GenerateMesh(adeNodes,mbs)                                   #Generatin Mesh without Movelist
+            if startSimulation and (type(adeNodes) == df.ElementDefinition or type(adeNodes) == dict):
+                if config.simulation.useMoveList: 
+                    ADE, mbs = GenerateMesh(adeNodes,mbs,adeMoveList = adeMoveList)         #Generating Mesh with Movelist
+                else:
+                    ADE, mbs = GenerateMesh(adeNodes,mbs)                                   #Generatin Mesh without Movelist
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Setting up Interactiv Marker
-#                 if config.simulation.addInteractivMarker:
-#                     gCylinder = GraphicsDataCylinder(pAxis=[0,0,0],vAxis=[0,0,0.001], radius=config.simulation.radiusInteractivMarker,
-#                                                       color= color4dodgerblue, nTiles=64)
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Setting up Interactiv Marker
+                if config.simulation.addInteractivMarker:
+                    gCylinder = GraphicsDataCylinder(pAxis=[0,0,0],vAxis=[0,0,0.001], radius=config.simulation.radiusInteractivMarker,
+                                                      color= color4dodgerblue, nTiles=64)
 
-#                     interactivNode = mbs.AddNode({'nodeType': 'PointGround',
-#                                                     'referenceCoordinates':config.simulation.interactivMarkerPosition,
-#                                                     'initialCoordinates': [0.0, 0.0, 0.0],
-#                                                     'name': 'Interactiv Node'})
+                    interactivNode = mbs.AddNode({'nodeType': 'PointGround',
+                                                    'referenceCoordinates':config.simulation.interactivMarkerPosition,
+                                                    'initialCoordinates': [0.0, 0.0, 0.0],
+                                                    'name': 'Interactiv Node'})
                     
                     
-#                     interactivMassPoint = mbs.AddObject(MassPoint(physicsMass = 1, nodeNumber = interactivNode, 
-#                                                     visualization=VObjectMassPoint(graphicsData=[gCylinder]),name = 'Interactiv Mass Point'))
-#                     interactivMarker =  mbs.AddMarker({'markerType': 'NodePosition',
-#                                                         'nodeNumber': interactivNode,
-#                                                         'name': 'Interactiv Marker'})
+                    interactivMassPoint = mbs.AddObject(MassPoint(physicsMass = 1, nodeNumber = interactivNode, 
+                                                    visualization=VObjectMassPoint(graphicsData=[gCylinder]),name = 'Interactiv Mass Point'))
+                    interactivMarker =  mbs.AddMarker({'markerType': 'NodePosition',
+                                                        'nodeNumber': interactivNode,
+                                                        'name': 'Interactiv Marker'})
 
-#                     ##+++++++++++++++++++++++++++++++++++++++
-#                     ## Adding Spring to interactiv Marker to drag the Mesh
-#                     if config.simulation.addSpringToInteractivMarker:
-#                             mbs.AddObject(CartesianSpringDamper(markerNumbers = [interactivMarker,ADE[3].get('cATC').SixBarLinkage[1].markers[-1]], 
-#                                                         stiffness = [1e8,1e8,1e8],
-#                                                         damping = [1e8,1e8,1e8],offset = [0,0,0]
-#                                                         ))
+                    ##+++++++++++++++++++++++++++++++++++++++
+                    ## Adding Spring to interactiv Marker to drag the Mesh
+                    if config.simulation.addSpringToInteractivMarker:
+                            mbs.AddObject(CartesianSpringDamper(markerNumbers = [interactivMarker,ADE[3].get('cATC').SixBarLinkage[1].markers[-1]], 
+                                                        stiffness = [1e8,1e8,1e8],
+                                                        damping = [1e8,1e8,1e8],offset = [0,0,0]
+                                                        ))
 
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Simulation Settings
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Simulation Settings
 
-#                 simulationSettings = exu.SimulationSettings() #takes currently set values or default values
-#                 # simulationSettings.timeIntegration.preStepPyExecute = 'MBSUserFunction()'
-#                 T=0.002
-#                 SC.visualizationSettings.connectors.defaultSize = T
-#                 SC.visualizationSettings.bodies.defaultSize = [T, T, T]
-#                 SC.visualizationSettings.nodes.defaultSize = 0.0025
-#                 SC.visualizationSettings.markers.defaultSize = 0.005
-#                 SC.visualizationSettings.loads.defaultSize = 0.015
-#                 SC.visualizationSettings.general.autoFitScene=True
+                simulationSettings = exu.SimulationSettings() #takes currently set values or default values
+                # simulationSettings.timeIntegration.preStepPyExecute = 'MBSUserFunction()'
+                T=0.002
+                SC.visualizationSettings.connectors.defaultSize = T
+                SC.visualizationSettings.bodies.defaultSize = [T, T, T]
+                SC.visualizationSettings.nodes.defaultSize = 0.0025
+                SC.visualizationSettings.markers.defaultSize = 0.005
+                SC.visualizationSettings.loads.defaultSize = 0.015
+                SC.visualizationSettings.general.autoFitScene=True
                 
                 
                 
@@ -3426,7 +3622,7 @@ def addBoundaryWithNodesInRectangle(adeNodes,nodesInRectangle):
                 
                 
                 
-#                 SC.visualizationSettings.sensors.traces.showPositionTrace = True
+                SC.visualizationSettings.sensors.traces.showPositionTrace = True
                 
                 
                 
@@ -3438,375 +3634,374 @@ def addBoundaryWithNodesInRectangle(adeNodes,nodesInRectangle):
                 
                 
                 
-#                 SC.visualizationSettings.nodes.show= True
-#                 SC.visualizationSettings.markers.show= False
-#                 SC.visualizationSettings.connectors.show= False
+                SC.visualizationSettings.nodes.show= True
+                SC.visualizationSettings.markers.show= False
+                SC.visualizationSettings.connectors.show= False
                 
-#                 SC.visualizationSettings.openGL.lineWidth=2 #maximum
-#                 SC.visualizationSettings.openGL.lineSmooth=True
-#                 SC.visualizationSettings.openGL.multiSampling = 4
-#                 SC.visualizationSettings.general.drawCoordinateSystem = False
-#                 SC.visualizationSettings.general.textSize = 16
-#                 if not config.simulation.showLabeling:
-#                     SC.visualizationSettings.general.showSolverTime = False
-#                     SC.visualizationSettings.general.showSolverInformation = False
-#                     SC.visualizationSettings.general.showSolutionInformation = False
+                SC.visualizationSettings.openGL.lineWidth=2 #maximum
+                SC.visualizationSettings.openGL.lineSmooth=True
+                SC.visualizationSettings.openGL.multiSampling = 4
+                SC.visualizationSettings.general.drawCoordinateSystem = False
+                SC.visualizationSettings.general.textSize = 16
+                if not config.simulation.showLabeling:
+                    SC.visualizationSettings.general.showSolverTime = False
+                    SC.visualizationSettings.general.showSolverInformation = False
+                    SC.visualizationSettings.general.showSolutionInformation = False
                 
-#                 #SC.visualizationSettings.window.renderWindowSize=[1600,1024]
-#                 SC.visualizationSettings.window.renderWindowSize=[1600,1000]
-                
-                
-#                 ##++++++++++++++++++++++++++++++
-#                 ##ANIMATIONS
-#                 ##make images for animations (requires FFMPEG):
-#                 ##requires a subfolder 'images'
-#                 if config.simulation.animation:
-#                     simulationSettings.solutionSettings.recordImagesInterval=0.04 #simulation.endTime/200
+                #SC.visualizationSettings.window.renderWindowSize=[1600,1024]
+                SC.visualizationSettings.window.renderWindowSize=[1600,1000]
                 
                 
-#                 if config.simulation.activateWithKeyPress:
-#                     SC.visualizationSettings.window.keyPressUserFunction = UserFunctionkeyPress
+                ##++++++++++++++++++++++++++++++
+                ##ANIMATIONS
+                ##make images for animations (requires FFMPEG):
+                ##requires a subfolder 'images'
+                if config.simulation.animation:
+                    simulationSettings.solutionSettings.recordImagesInterval=0.04 #simulation.endTime/200
                 
-#                 if config.simulation.saveImages:
-#                     SC.visualizationSettings.exportImages.saveImageFileName = config.simulation.imageFilename
-#                     SC.visualizationSettings.exportImages.saveImageFormat = "PNG"
-#                     SC.visualizationSettings.exportImages.saveImageSingleFile=False
+                
+                if config.simulation.activateWithKeyPress:
+                    SC.visualizationSettings.window.keyPressUserFunction = UserFunctionkeyPress
+                
+                if config.simulation.saveImages:
+                    SC.visualizationSettings.exportImages.saveImageFileName = config.simulation.imageFilename
+                    SC.visualizationSettings.exportImages.saveImageFormat = "PNG"
+                    SC.visualizationSettings.exportImages.saveImageSingleFile=False
                     
 
 
                     
-#                     if config.simulation.showJointAxes:
-#                         SC.visualizationSettings.connectors.defaultSize = 0.002
-#                         SC.visualizationSettings.connectors.showJointAxes = True
-#                         # SC.visualizationSettings.connectors.jointAxesLength = 0.008#0.0015
-#                         # SC.visualizationSettings.connectors.jointAxesRadius = 0.0025#0.0008
-#                         SC.visualizationSettings.connectors.jointAxesLength = 0.0015
-#                         SC.visualizationSettings.connectors.jointAxesRadius = 0.0008
+                    if config.simulation.showJointAxes:
+                        SC.visualizationSettings.connectors.defaultSize = 0.002
+                        SC.visualizationSettings.connectors.showJointAxes = True
+                        # SC.visualizationSettings.connectors.jointAxesLength = 0.008#0.0015
+                        # SC.visualizationSettings.connectors.jointAxesRadius = 0.0025#0.0008
+                        SC.visualizationSettings.connectors.jointAxesLength = 0.0015
+                        SC.visualizationSettings.connectors.jointAxesRadius = 0.0008
 
                 
             
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Assemble Mesh 
-#                 mbs.Assemble()
-#                 sysStateList = mbs.systemData.GetSystemState()
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Assemble Mesh 
+                mbs.Assemble()
+                sysStateList = mbs.systemData.GetSystemState()
 
                 
-#                 if displaySimulation:
-#                     exu.StartRenderer()
-#                     mbs.WaitForUserToContinue()
+                if displaySimulation:
+                    exu.StartRenderer()
+                    mbs.WaitForUserToContinue()
 
-#                 if type(adeNodes) == dict:
-#                     for ID in adeNodes[0].elements:
-#                         for i in range(len(adeNodes[0].connectionList[ID])):
-#                             if adeNodes[0].connectionList[ID][i][2] in ADE:
-#                                 ConnectADE(mbs,ADE,adeNodes[0].connectionList[ID][i])
-#                 else:
-#                     for ID in adeNodes.elements:
-#                         for i in range(len(adeNodes.connectionList[ID])):
-#                             if adeNodes.connectionList[ID][i][2] in ADE:
-#                                 ConnectADE(mbs,ADE,adeNodes.connectionList[ID][i])
-#                 mbs.AssembleLTGLists()
-#                 mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                if type(adeNodes) == dict:
+                    for ID in adeNodes[0].elements:
+                        for i in range(len(adeNodes[0].connectionList[ID])):
+                            if adeNodes[0].connectionList[ID][i][2] in ADE:
+                                ConnectADE(mbs,ADE,adeNodes[0].connectionList[ID][i])
+                else:
+                    for ID in adeNodes.elements:
+                        for i in range(len(adeNodes.connectionList[ID])):
+                            if adeNodes.connectionList[ID][i][2] in ADE:
+                                ConnectADE(mbs,ADE,adeNodes.connectionList[ID][i])
+                mbs.AssembleLTGLists()
+                mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Setting um SensorValues and Sending initial Sensor Values (Mesh Node Coordinates)
-#                 SensorValuesTime = {} 
-#                 SensorValuesTime[0] = {}  
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Setting um SensorValues and Sending initial Sensor Values (Mesh Node Coordinates)
+                SensorValuesTime = {} 
+                SensorValuesTime[0] = {}  
                 
-#                 SensorValues = {} 
-#                 SensorValues[0] = {}
-#                 for ID in adeIDs:
-#                     SensorValues[0][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
-#                 client.Put('SensorValues',pickle.dumps(SensorValues))
+                SensorValues = {} 
+                SensorValues[0] = {}
+                for ID in adeIDs:
+                    SensorValues[0][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
+                client.Put('SensorValues',pickle.dumps(SensorValues))
     
-#                 SensorValuesTime[0]=SensorValues.copy()
+                SensorValuesTime[0]=SensorValues.copy()
 
-#                 # calculate in the first step the static solution
-#                 simulationSettings.staticSolver.newton.numericalDifferentiation.relativeEpsilon = 1e-4
-#                 newResidual = True
-#                 if not(newResidual):
-#                     simulationSettings.staticSolver.newton.relativeTolerance = 1e-10
-#                     simulationSettings.staticSolver.newton.absoluteTolerance = 1e-12
-#                 else:
-#                     #new solver settings, work for all 2x7 configurations with eps=1e-4
-#                     simulationSettings.staticSolver.newton.relativeTolerance = 1e-5
-#                     simulationSettings.staticSolver.newton.absoluteTolerance = 1e-5
-#                     simulationSettings.staticSolver.newton.newtonResidualMode = 1 #take Newton increment
+                # calculate in the first step the static solution
+                simulationSettings.staticSolver.newton.numericalDifferentiation.relativeEpsilon = 1e-4
+                newResidual = True
+                if not(newResidual):
+                    simulationSettings.staticSolver.newton.relativeTolerance = 1e-10
+                    simulationSettings.staticSolver.newton.absoluteTolerance = 1e-12
+                else:
+                    #new solver settings, work for all 2x7 configurations with eps=1e-4
+                    simulationSettings.staticSolver.newton.relativeTolerance = 1e-5
+                    simulationSettings.staticSolver.newton.absoluteTolerance = 1e-5
+                    simulationSettings.staticSolver.newton.newtonResidualMode = 1 #take Newton increment
                 
-#                 simulationSettings.staticSolver.stabilizerODE2term = 1
+                simulationSettings.staticSolver.stabilizerODE2term = 1
                 
-#                 simulationSettings.staticSolver.newton.numericalDifferentiation.relativeEpsilon = 1e-9
-#                 simulationSettings.staticSolver.newton.maxIterations = 250
+                simulationSettings.staticSolver.newton.numericalDifferentiation.relativeEpsilon = 1e-9
+                simulationSettings.staticSolver.newton.maxIterations = 250
                     
-#                 simulationSettings.linearSolverType = exu.LinearSolverType.EigenSparse
-#                 simulationSettings.staticSolver.newton.weightTolerancePerCoordinate = True   
-#                 simulationSettings.solutionSettings.solutionInformation = "PARTS_StaticSolution"
+                simulationSettings.linearSolverType = exu.LinearSolverType.EigenSparse
+                simulationSettings.staticSolver.newton.weightTolerancePerCoordinate = True   
+                simulationSettings.solutionSettings.solutionInformation = "PARTS_StaticSolution"
+                
+                numberOfLoadSteps=1
+                simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
+                
+                exu.SolveStatic(mbs, simulationSettings=simulationSettings)
 
+                if config.simulation.saveImages:
+                    SC.RedrawAndSaveImage()
                 
-#                 numberOfLoadSteps=10
-#                 simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
-                
-#                 exu.SolveStatic(mbs, simulationSettings=simulationSettings)
-
-#                 if config.simulation.saveImages:
-#                     SC.RedrawAndSaveImage()
-                
-#                 solODE2initial = mbs.systemData.GetODE2Coordinates(configuration=exu.ConfigurationType.Current)
-#                 mbs.systemData.SetODE2Coordinates(solODE2initial, configuration=exu.ConfigurationType.Initial)  #set old solution as initial value for new solution
+                solODE2initial = mbs.systemData.GetODE2Coordinates(configuration=exu.ConfigurationType.Current)
+                mbs.systemData.SetODE2Coordinates(solODE2initial, configuration=exu.ConfigurationType.Initial)  #set old solution as initial value for new solution
                  
-#                 mbs.WaitForUserToContinue()       
+                mbs.WaitForUserToContinue()       
                 
-#                 # mbs.SetPreStepUserFunction(PreStepUserFunction)
+                # mbs.SetPreStepUserFunction(PreStepUserFunction)
 
-#                 # simulationSettings.timeIntegration.numberOfSteps = config.simulation.nrSteps
-#                 # simulationSettings.timeIntegration.endTime = config.simulation.endTime
+                # simulationSettings.timeIntegration.numberOfSteps = config.simulation.nrSteps
+                # simulationSettings.timeIntegration.endTime = config.simulation.endTime
 
-#                 simulationSettings.timeIntegration.newton.absoluteTolerance = 1e3
-#                 simulationSettings.timeIntegration.newton.numericalDifferentiation.minimumCoordinateSize = 1
+                simulationSettings.timeIntegration.newton.absoluteTolerance = 1e3
+                simulationSettings.timeIntegration.newton.numericalDifferentiation.minimumCoordinateSize = 1
             
-#                 simulationSettings.timeIntegration.verboseMode = 0
-#                 #simulationSettings.timeIntegration.newton.useNumericalDifferentiation = True
-#                 #simulationSettings.timeIntegration.newton.numericalDifferentiation.doSystemWideDifferentiation = True
+                simulationSettings.timeIntegration.verboseMode = 0
+                #simulationSettings.timeIntegration.newton.useNumericalDifferentiation = True
+                #simulationSettings.timeIntegration.newton.numericalDifferentiation.doSystemWideDifferentiation = True
                 
-#                 simulationSettings.timeIntegration.generalizedAlpha.computeInitialAccelerations = False
-#                 simulationSettings.timeIntegration.newton.useModifiedNewton = False #JG
-#                 simulationSettings.timeIntegration.generalizedAlpha.spectralRadius = 0.4
-#                 simulationSettings.timeIntegration.adaptiveStep = True #disable adaptive step reduction
+                simulationSettings.timeIntegration.generalizedAlpha.computeInitialAccelerations = False
+                simulationSettings.timeIntegration.newton.useModifiedNewton = False #JG
+                simulationSettings.timeIntegration.generalizedAlpha.spectralRadius = 0.4
+                simulationSettings.timeIntegration.adaptiveStep = True #disable adaptive step reduction
 
                 
                 
-#                 ##############################################################
-#                 # IMPORTANT!!!!!!!!!
-#                 simulationSettings.linearSolverType = exu.LinearSolverType.EigenSparse #sparse solver !!!!!!!!!!!!!!!
-#                 ##############################################################
-#                 simulationSettings.displayStatistics = False       
-#             #        simulationSettings.timeIntegration.preStepPyExecute = "UserFunction()\n" #NEU?
-#                 if False: #JG
-#                     simulationSettings.timeIntegration.generalizedAlpha.useIndex2Constraints = True
-#                     simulationSettings.timeIntegration.generalizedAlpha.useNewmark= True
+                ##############################################################
+                # IMPORTANT!!!!!!!!!
+                simulationSettings.linearSolverType = exu.LinearSolverType.EigenSparse #sparse solver !!!!!!!!!!!!!!!
+                ##############################################################
+                simulationSettings.displayStatistics = False       
+            #        simulationSettings.timeIntegration.preStepPyExecute = "UserFunction()\n" #NEU?
+                if False: #JG
+                    simulationSettings.timeIntegration.generalizedAlpha.useIndex2Constraints = True
+                    simulationSettings.timeIntegration.generalizedAlpha.useNewmark= True
 
 
-#                 if config.simulation.solutionViewer: #use this to reload the solution and use SolutionViewer
-#                     SC.visualizationSettings.general.autoFitScene=False #if reloaded view settings
-#                     simulationSettings.solutionSettings.solutionWritePeriod = config.simulation.solutionWritePeriod
-#                     simulationSettings.solutionSettings.writeSolutionToFile = True
-#                     simulationSettings.solutionSettings.coordinatesSolutionFileName = config.simulation.solutionViewerFile
-#                     simulationSettings.solutionSettings.writeFileFooter = False
-#                     simulationSettings.solutionSettings.writeFileHeader = True
-#                     if os.path.isfile(solutionFilePath):
-#                         os.remove(solutionFilePath)
-#                     simulationSettings.solutionSettings.appendToFile = True
+                if config.simulation.solutionViewer: #use this to reload the solution and use SolutionViewer
+                    SC.visualizationSettings.general.autoFitScene=False #if reloaded view settings
+                    simulationSettings.solutionSettings.solutionWritePeriod = config.simulation.solutionWritePeriod
+                    simulationSettings.solutionSettings.writeSolutionToFile = True
+                    simulationSettings.solutionSettings.coordinatesSolutionFileName = config.simulation.solutionViewerFile
+                    simulationSettings.solutionSettings.writeFileFooter = False
+                    simulationSettings.solutionSettings.writeFileHeader = True
+                    if os.path.isfile(solutionFilePath):
+                        os.remove(solutionFilePath)
+                    simulationSettings.solutionSettings.appendToFile = True
 
 
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Starting Simulation using Movelist
-#                 if config.simulation.useMoveList:
-#                     ##+++++++++++++++++++++++++++++++++++++++
-#                     ## Checking and Setting Connections of ADEs
-#                     TimeStamp = 0
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Starting Simulation using Movelist
+                if config.simulation.useMoveList:
+                    ##+++++++++++++++++++++++++++++++++++++++
+                    ## Checking and Setting Connections of ADEs
+                    TimeStamp = 0
                     
 
-#                     for i in range(len(adeMoveList.data)-1):
-#                         mbs.variables['line']=i+1
-#                         SensorValuesTime[i+1]={}
+                    for i in range(len(adeMoveList.data)-1):
+                        mbs.variables['line']=i+1
+                        SensorValuesTime[i+1]={}
                         
-#                         if i == len(adeMoveList.data)-2 and config.simulation.solutionViewer:
-#                             simulationSettings.solutionSettings.writeFileFooter = True
-#                             simulationSettings.solutionSettings.writeFileHeader = False
-#                             if i == 0:
-#                                 simulationSettings.solutionSettings.writeFileHeader = True
+                        if i == len(adeMoveList.data)-2 and config.simulation.solutionViewer:
+                            simulationSettings.solutionSettings.writeFileFooter = True
+                            simulationSettings.solutionSettings.writeFileHeader = False
+                            if i == 0:
+                                simulationSettings.solutionSettings.writeFileHeader = True
 
 
-#                         nextTimeStamp = False
-#                         cnt=i
+                        nextTimeStamp = False
+                        cnt=i
                    
-#                         if cnt >= 0:
-#                             ##+++++++++++++++++++++++++++++++++++++++
-#                             ## Checking if Connections changed with the MoveList
-#                             for j in range(len(adeIDs)):
-#                                 index = adeMoveList.GetIndexOfID(adeIDs[j])
-#                                 if index != None:
-#                                     if config.simulation.connectionInfoInMoveList:
-#                                         if adeMoveList.data[cnt,index+4] != adeMoveList.data[cnt+1,index+4] or adeMoveList.data[cnt,index+5] != adeMoveList.data[cnt+1,index+5] or adeMoveList.data[cnt,index+6] != adeMoveList.data[cnt+1,index+6]:
-#                                             nextTimeStamp = True
-#                                     else:
-#                                         if  adeMoveList.data[cnt+1,index+4] != 0 or adeMoveList.data[cnt+1,index+5] != 0 or adeMoveList.data[cnt+1,index+6] != 0: #for 6ADEs
-#                                             nextTimeStamp = True
+                        if cnt >= 0:
+                            ##+++++++++++++++++++++++++++++++++++++++
+                            ## Checking if Connections changed with the MoveList
+                            for j in range(len(adeIDs)):
+                                index = adeMoveList.GetIndexOfID(adeIDs[j])
+                                if index != None:
+                                    if config.simulation.connectionInfoInMoveList:
+                                        if adeMoveList.data[cnt,index+4] != adeMoveList.data[cnt+1,index+4] or adeMoveList.data[cnt,index+5] != adeMoveList.data[cnt+1,index+5] or adeMoveList.data[cnt,index+6] != adeMoveList.data[cnt+1,index+6]:
+                                            nextTimeStamp = True
+                                    else:
+                                        if  adeMoveList.data[cnt+1,index+4] != 0 or adeMoveList.data[cnt+1,index+5] != 0 or adeMoveList.data[cnt+1,index+6] != 0: #for 6ADEs
+                                            nextTimeStamp = True
                                     
-#                             if nextTimeStamp == True:
-#                                 TimeStamp += 1
+                            if nextTimeStamp == True:
+                                TimeStamp += 1
 
-#                                 if TimeStamp > 0:
-#                                     #sysStateList = mbs.systemData.GetSystemState()
-#                                     IDList = []
-#                                     for ID in adeNodes[0].elements:
-#                                         IDList += [ID]
-#                                         ##+++++++++++++++++++++++++++++++++++++++
-#                                         ## Disconnecting Connections that are no longer Needed
-#                                         for k in range(len(adeNodes[TimeStamp-1].connectionList[ID])):
-#                                             if adeNodes[TimeStamp-1].connectionList[ID][k] not in adeNodes[TimeStamp].connectionList[ID] and (adeNodes[TimeStamp-1].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp-1].connectionList[ID][k][2] <= -1):
-#                                                 DisconnectADE(mbs,ADE,adeNodes[TimeStamp-1].connectionList[ID][k])
-#                                                 if config.simulation.debugConnectionInfo:
-#                                                     logging.info("Disconnected" + str(adeNodes[TimeStamp-1].connectionList[ID][k]))
-#                                         # # ##+++++++++++++++++++++++++++++++++++++++
-#                                         # ## Connecting new Connections of ADEs
-#                                         # for k in range(len(adeNodes[TimeStamp].connectionList[ID])):
-#                                         #     if adeNodes[TimeStamp].connectionList[ID][k] not in adeNodes[TimeStamp-1].connectionList[ID] and (adeNodes[TimeStamp].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp].connectionList[ID][k][2] <= -1):
-#                                         #         ConnectADE(mbs,ADE,adeNodes[TimeStamp].connectionList[ID][k])
-#                                         #         if config.simulation.debugConnectionInfo:
-#                                         #             logging.info("Connected" + str(adeNodes[TimeStamp].connectionList[ID][k]))
+                                if TimeStamp > 0:
+                                    #sysStateList = mbs.systemData.GetSystemState()
+                                    IDList = []
+                                    for ID in adeNodes[0].elements:
+                                        IDList += [ID]
+                                        ##+++++++++++++++++++++++++++++++++++++++
+                                        ## Disconnecting Connections that are no longer Needed
+                                        for k in range(len(adeNodes[TimeStamp-1].connectionList[ID])):
+                                            if adeNodes[TimeStamp-1].connectionList[ID][k] not in adeNodes[TimeStamp].connectionList[ID] and (adeNodes[TimeStamp-1].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp-1].connectionList[ID][k][2] <= -1):
+                                                DisconnectADE(mbs,ADE,adeNodes[TimeStamp-1].connectionList[ID][k])
+                                                if config.simulation.debugConnectionInfo:
+                                                    logging.info("Disconnected" + str(adeNodes[TimeStamp-1].connectionList[ID][k]))
+                                        # # ##+++++++++++++++++++++++++++++++++++++++
+                                        # ## Connecting new Connections of ADEs
+                                        # for k in range(len(adeNodes[TimeStamp].connectionList[ID])):
+                                        #     if adeNodes[TimeStamp].connectionList[ID][k] not in adeNodes[TimeStamp-1].connectionList[ID] and (adeNodes[TimeStamp].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp].connectionList[ID][k][2] <= -1):
+                                        #         ConnectADE(mbs,ADE,adeNodes[TimeStamp].connectionList[ID][k])
+                                        #         if config.simulation.debugConnectionInfo:
+                                        #             logging.info("Connected" + str(adeNodes[TimeStamp].connectionList[ID][k]))
 
-#                                     mbs.AssembleLTGLists()
-#                                     mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                                    mbs.AssembleLTGLists()
+                                    mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
 
-#                         ##+++++++++++++++++++++++++++++++++++++++
-#                         ## Simulation of Mesh                          
-#                         mbs.SetPreStepUserFunction(PreStepUserFunction)
+                        ##+++++++++++++++++++++++++++++++++++++++
+                        ## Simulation of Mesh                          
+                        mbs.SetPreStepUserFunction(PreStepUserFunction)
                         
-#                         if computeDynamic:
+                        if computeDynamic:
 
-#                             simulationSettings.solutionSettings.solutionInformation = "MoveList Line " +str(i+2)
+                            simulationSettings.solutionSettings.solutionInformation = "MoveList Line " +str(i+2)
                             
-#                             if config.simulation.SolveDynamic:
-#                                 simulationSettings.timeIntegration.numberOfSteps = int(config.simulation.nrSteps)
-#                                 endTime=cf.CalcPause(adeMoveList,cnt+1,minPauseVal = 0.2)
-#                                 config.simulation.endTime = endTime
-#                                 simulationSettings.timeIntegration.endTime = endTime+config.simulation.idleTime
+                            if config.simulation.SolveDynamic:
+                                simulationSettings.timeIntegration.numberOfSteps = int(config.simulation.nrSteps)
+                                endTime=cf.CalcPause(adeMoveList,cnt+1,minPauseVal = 0.2)
+                                config.simulation.endTime = endTime
+                                simulationSettings.timeIntegration.endTime = endTime+config.simulation.idleTime
                                 
-#                                 # simulationSettings.timeIntegration.simulateInRealtime=True
+                                # simulationSettings.timeIntegration.simulateInRealtime=True
 
-#                                 exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
+                                exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
 
-#                                 # sysStateList = mbs.systemData.GetSystemState()
-#                                 # mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                                # sysStateList = mbs.systemData.GetSystemState()
+                                # mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
                                 
-#                                 # mbs.SetPreStepUserFunction(PreStepUserFunction)
+                                # mbs.SetPreStepUserFunction(PreStepUserFunction)
                                 
-#                                 # simulationSettings.timeIntegration.endTime = 1
-#                                 # exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
+                                # simulationSettings.timeIntegration.endTime = 1
+                                # exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
                                 
-#                             else:
-#                                 numberOfLoadSteps=10
-#                                 simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
-#                                 exu.SolveStatic(mbs, simulationSettings = simulationSettings,showHints=True)
+                            else:
+                                numberOfLoadSteps=10
+                                simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
+                                exu.SolveStatic(mbs, simulationSettings = simulationSettings,showHints=True)
                                 
                                 
-#                             ## Sending new Sensor Values to Webserver
-#                             SensorValuesTime[cnt+1][0]={}
-#                             SensorValues[cnt+1] = {}
-#                             for ID in adeIDs:
-#                                 SensorValues[cnt+1][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
-#                             client.Put('SensorValues',pickle.dumps(SensorValues))
+                            ## Sending new Sensor Values to Webserver
+                            SensorValuesTime[cnt+1][0]={}
+                            SensorValues[cnt+1] = {}
+                            for ID in adeIDs:
+                                SensorValues[cnt+1][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
+                            client.Put('SensorValues',pickle.dumps(SensorValues))
     
-#                             SensorValuesTime[cnt+1][0]=SensorValues[cnt+1]
+                            SensorValuesTime[cnt+1][0]=SensorValues[cnt+1]
 
                         
-#                             print("stop flag=", mbs.GetRenderEngineStopFlag())
-#                             if config.simulation.saveImages:
-#                                 SC.RedrawAndSaveImage() 
-#                             #mbs.WaitForUserToContinue() 
+                            print("stop flag=", mbs.GetRenderEngineStopFlag())
+                            if config.simulation.saveImages:
+                                SC.RedrawAndSaveImage() 
+                            #mbs.WaitForUserToContinue() 
                         
-#                         if not mbs.GetRenderEngineStopFlag():
-#                             sysStateList = mbs.systemData.GetSystemState()
-#                             mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                        if not mbs.GetRenderEngineStopFlag():
+                            sysStateList = mbs.systemData.GetSystemState()
+                            mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
 
-#                             ##+++++++++++++++++++++++++++++++++++++++
-#                             ## Connecting new Connections of ADEs
-#                             if nextTimeStamp:
-#                                 nextTimeStamp = False
-#                                 #sysStateList = mbs.systemData.GetSystemState()
-#                                 IDList = []
-#                                 for ID in adeNodes[0].elements:
-#                                     IDList += [ID]
+                            ##+++++++++++++++++++++++++++++++++++++++
+                            ## Connecting new Connections of ADEs
+                            if nextTimeStamp:
+                                nextTimeStamp = False
+                                #sysStateList = mbs.systemData.GetSystemState()
+                                IDList = []
+                                for ID in adeNodes[0].elements:
+                                    IDList += [ID]
                                 
-#                                     ##+++++++++++++++++++++++++++++++++++++++
-#                                     ## Connecting new Connections of ADEs
-#                                     for k in range(len(adeNodes[TimeStamp].connectionList[ID])):
-#                                         if adeNodes[TimeStamp].connectionList[ID][k] not in adeNodes[TimeStamp-1].connectionList[ID] and (adeNodes[TimeStamp].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp].connectionList[ID][k][2] <= -1):
-#                                             ConnectADE(mbs,ADE,adeNodes[TimeStamp].connectionList[ID][k])
-#                                             if config.simulation.debugConnectionInfo:
-#                                                 logging.info("Connected" + str(adeNodes[TimeStamp].connectionList[ID][k]))
-#                                     mbs.AssembleLTGLists()
-#                                     mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
-#                         else:
-#                             ##+++++++++++++++++++++++++++++++++++++++
-#                             ## Resetting Simulation
-#                             break
+                                    ##+++++++++++++++++++++++++++++++++++++++
+                                    ## Connecting new Connections of ADEs
+                                    for k in range(len(adeNodes[TimeStamp].connectionList[ID])):
+                                        if adeNodes[TimeStamp].connectionList[ID][k] not in adeNodes[TimeStamp-1].connectionList[ID] and (adeNodes[TimeStamp].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp].connectionList[ID][k][2] <= -1):
+                                            ConnectADE(mbs,ADE,adeNodes[TimeStamp].connectionList[ID][k])
+                                            if config.simulation.debugConnectionInfo:
+                                                logging.info("Connected" + str(adeNodes[TimeStamp].connectionList[ID][k]))
+                                    mbs.AssembleLTGLists()
+                                    mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                        else:
+                            ##+++++++++++++++++++++++++++++++++++++++
+                            ## Resetting Simulation
+                            break
                         
                         
                 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Starting Simulation without Movelist
-#                 else:
-#                     if computeDynamic:
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Starting Simulation without Movelist
+                else:
+                    if computeDynamic:
 
-#                             simulationSettings.solutionSettings.solutionInformation = "Exudyn ADE Simulation"
+                            simulationSettings.solutionSettings.solutionInformation = "Exudyn ADE Simulation"
 
-#                             mbs.Assemble()
-#                             mbs.SetPreStepUserFunction(PreStepUserFunction)
+                            mbs.Assemble()
+                            mbs.SetPreStepUserFunction(PreStepUserFunction)
                             
-#                             if displaySimulation:
-#                                 exu.StartRenderer()
-#                                 mbs.WaitForUserToContinue()
+                            if displaySimulation:
+                                exu.StartRenderer()
+                                mbs.WaitForUserToContinue()
 
-#                             if config.simulation.SolveDynamic:
-#                                 simulationSettings.timeIntegration.numberOfSteps = config.simulation.nrSteps
-#                                 endTime=cf.CalcPause(adeMoveList,cnt+1,minPauseVal = 0.2)
-#                                 config.simulation.endTime = config.simulation.endTime
-#                                 simulationSettings.timeIntegration.endTime = config.simulation.endTime
-#                                 exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
-#                             else:
-#                                 numberOfLoadSteps=10
-#                                 simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
-#                                 exu.SolveStatic(mbs, simulationSettings = simulationSettings,showHints=True)
+                            if config.simulation.SolveDynamic:
+                                simulationSettings.timeIntegration.numberOfSteps = config.simulation.nrSteps
+                                endTime=cf.CalcPause(adeMoveList,cnt+1,minPauseVal = 0.2)
+                                config.simulation.endTime = config.simulation.endTime
+                                simulationSettings.timeIntegration.endTime = config.simulation.endTime
+                                exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
+                            else:
+                                numberOfLoadSteps=10
+                                simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
+                                exu.SolveStatic(mbs, simulationSettings = simulationSettings,showHints=True)
 
-#                             ##+++++++++++++++++++++++++++++++++++++++
-#                             ## Sending new Sensor Values to Webserver
-#                             SensorValues[1] = {}
-#                             for ID in adeIDs:
-#                                 SensorValues[1][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
-#                             client.Put('SensorValues',pickle.dumps(SensorValues))
+                            ##+++++++++++++++++++++++++++++++++++++++
+                            ## Sending new Sensor Values to Webserver
+                            SensorValues[1] = {}
+                            for ID in adeIDs:
+                                SensorValues[1][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
+                            client.Put('SensorValues',pickle.dumps(SensorValues))
                             
                         
-#                             print("stop flag=", mbs.GetRenderEngineStopFlag())
+                            print("stop flag=", mbs.GetRenderEngineStopFlag())
                     
                         
-#                     if not mbs.GetRenderEngineStopFlag():
-#                         sysStateList = mbs.systemData.GetSystemState()
-#                         mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
-#                     else: 
-#                         break
+                    if not mbs.GetRenderEngineStopFlag():
+                        sysStateList = mbs.systemData.GetSystemState()
+                        mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
+                    else: 
+                        break
 
-#                 if displaySimulation and not mbs.GetRenderEngineStopFlag():  
-#                     mbs.WaitForUserToContinue()      
-#                     exu.StopRenderer() #safely close rendering window!
-#                 try:
-#                     if config.simulation.solutionViewer:
-#                          sol = LoadSolutionFile(config.simulation.solutionViewerFile, safeMode=True)#, maxRows=100) 
-#                          SolutionViewer(mbs,sol) #can also be entered in 
-#                 except:
-#                     logging.warning('Couldnt load Solution File')
+                if displaySimulation and not mbs.GetRenderEngineStopFlag():  
+                    mbs.WaitForUserToContinue()      
+                    exu.StopRenderer() #safely close rendering window!
+                try:
+                    if config.simulation.solutionViewer:
+                         sol = LoadSolutionFile(config.simulation.solutionViewerFile, safeMode=True)#, maxRows=100) 
+                         SolutionViewer(mbs,sol) #can also be entered in 
+                except:
+                    logging.warning('Couldnt load Solution File')
 
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Saving Sensor Data to File
-#                 if config.simulation.saveSensorValues:
-#                      pickle.dump(  SensorValues,  open(config.simulation.sensorValuesFile,  'wb')  )
-#                      pickle.dump(  SensorValuesTime,  open(config.simulation.sensorValuesTimeFile,  'wb')  )
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Saving Sensor Data to File
+                if config.simulation.saveSensorValues:
+                     pickle.dump(  SensorValues,  open(config.simulation.sensorValuesFile,  'wb')  )
+                     pickle.dump(  SensorValuesTime,  open(config.simulation.sensorValuesTimeFile,  'wb')  )
 
-#                 ##+++++++++++++++++++++++++++++++++++++++
-#                 ## Resetting Simulation
-#                 mbs.Reset()
-#                 startSimulation = False
-#                 client.Put('StartSimulation',json.dumps(startSimulation))
+                ##+++++++++++++++++++++++++++++++++++++++
+                ## Resetting Simulation
+                mbs.Reset()
+                startSimulation = False
+                client.Put('StartSimulation',json.dumps(startSimulation))
                 
         
-#         except Exception as ExeptionMessage: 
-#             logging.warning('Error ocured during Simulation')
-#             logging.warning(ExeptionMessage)
-#             startSimulation = False
-#             #client.Put('StartSimulation',json.dumps(False))
-#             mbs.Reset()
-#         time.sleep(config.simulation.looptime-time.time()%config.simulation.looptime)
+        except Exception as ExeptionMessage: 
+            logging.warning('Error ocured during Simulation')
+            logging.warning(ExeptionMessage)
+            startSimulation = False
+            #client.Put('StartSimulation',json.dumps(False))
+            mbs.Reset()
+        time.sleep(config.simulation.looptime-time.time()%config.simulation.looptime)
