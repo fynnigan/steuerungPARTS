@@ -299,7 +299,7 @@ def init():
 
     #Options for Solver
     simulation.SolveDynamic = False #set False to SolveStatic
-    simulation.endTime = 10 #used only if interactive marker True
+    simulation.endTime = 5 #used only if interactive marker True
     simulation.nrSteps = int(1e3) 
 
 

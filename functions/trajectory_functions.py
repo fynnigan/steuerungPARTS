@@ -8,6 +8,12 @@ Created on Sat Mar 22 13:43:44 2025
 
 import numpy as np
 from scipy.interpolate import splprep, splev, interp1d
+import matplotlib
+matplotlib.rcParams.update({
+    "text.usetex": False,
+    "font.family": "serif",
+    "font.serif": ["STIX Two Text"]
+})
 import matplotlib.pyplot as plt
 
 
@@ -145,37 +151,72 @@ def plotTrajAufgabenraum(xy_array, points=None):
     plt.axis('equal')
     plt.legend()
     plt.grid(True)
-    plt.title("Trajektorie im Aufgabenraum")
     plt.show()
+    
+    
 
+def rotatePointsAroundTCP(offsets, angle):
+    """
+    Rotiert eine Liste von 2D-Offsets um den TCP (also um den Ursprung).
 
-def targetToNodeListCoords(pos, angle, TCPOffsets):
+    Parameters:
+    - offsets: Liste von 2D-Vektoren (z. B. relative Punkte zum TCP)
+    - angle: Winkel in Radiant (im mathematisch positiven Sinn)
 
-    # Rotationsmatrix
+    Returns:
+    - Liste von rotierten 2D-Vektoren
+    """
     R = np.array([
         [np.cos(angle), -np.sin(angle)],
         [np.sin(angle),  np.cos(angle)]
     ])
     
-    # Rotierte Zielkoordinaten berechnen relativ zu hauptTCP
-    rotatedTargets = [pos + R @ offset for offset in TCPOffsets]
+    return [R @ offset for offset in offsets]
 
-    # neue Koordinaten relativ zu ihrer vorherigen Position
-    relativeTargetOffsets = np.array(rotatedTargets) - np.array(TCPOffsets)
 
-    # alle zielpunkte anfuegen
+def targetToNodeListCoords(pos, angle, relOffsetsToTCP, previousRelOffsets=None):
+    """
+    Berechnet die Zielkoordinaten für die Node-Liste relativ zu ihrer vorherigen Position.
+
+    Parameters:
+    - pos: aktuelle Verschiebung des TCP
+    - angle: aktuelle Rotation (im Bogenmaß)
+    - relOffsetsToTCP: ursprüngliche relative Positionen der Punkte zum TCP
+    - previousRelOffsets: relative Positionen der Punkte aus dem vorherigen Schritt (optional)
+
+    Returns:
+    - target: Liste mit [x0, y0, dx1, dy1, dx2, dy2, ...]
+    - rotatedRelToTCP: aktuelle (gedrehte) Positionen, zur Weitergabe für den nächsten Schritt
+    """
+    # Punkte um den TCP drehen
+    rotatedRelToTCP = rotatePointsAroundTCP(relOffsetsToTCP, angle)
+
+    # Differenz zum vorherigen Schritt oder zur Grundkonfiguration
+    if previousRelOffsets is not None:
+        deltaOffsets = [rot - prev for rot, prev in zip(rotatedRelToTCP, previousRelOffsets)]
+    else:
+        deltaOffsets = [rot - orig for rot, orig in zip(rotatedRelToTCP, relOffsetsToTCP)]
+
+    # Zielpunkte = TCP-Position + relative Änderung
+    relativeTargetOffsets = [pos + delta for delta in deltaOffsets]
+
+    # Zielstruktur erzeugen
     target = [pos[0], pos[1]]
-    for i in relativeTargetOffsets:
-        target.append(i[0])
-        target.append(i[1])
-        
-    return target
+    for p in relativeTargetOffsets:
+        target.extend(p)  # fügt x, y direkt an
+
+    return target, rotatedRelToTCP
+
 
 
 def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
     def unit(v):
         norm = np.linalg.norm(v)
         return v / norm if norm != 0 else v
+    
+    if len(points) == 2:
+        # Bei nur 2 Punkten: einfache Gerade zurückgeben
+        return np.linspace(points[0], points[1], n_per_corner)
 
     segments = []
     points = np.asarray(points)
@@ -228,11 +269,18 @@ class CPTrajectory:
         absPoints = relativeToAbsolutePoints(points)
 
         if method == "linear":
+            t_vals = np.linspace(0, 1, resolution)
             segments = [
                 np.linspace(absPoints[i], absPoints[i + 1], resolution // (len(absPoints) - 1), endpoint=False)
                 for i in range(len(absPoints) - 1)
             ]
             traj = np.vstack(segments + [absPoints[-1][None]])
+            
+            # Winkelberechnung
+            t_stuetz = np.linspace(0, 1, len(angles_rad))
+            angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
+            angles = angle_spline(t_vals)
+            
         elif method == "spline":
             tck, _ = splprep(absPoints.T, s=1)
             t_vals = np.linspace(0, 1, resolution)
@@ -243,33 +291,51 @@ class CPTrajectory:
             angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
             angles = angle_spline(t_vals)
             
-            angles = np.zeros(len(t_vals))
+            # angles = np.zeros(len(t_vals))
         elif method in ("bezier2", "bezier3", "bezier5"):
+            t_vals = np.linspace(0, 1, resolution)
             degree = {"bezier2": 2, "bezier3": 3, "bezier5": 5}[method]
-            traj_full = corner_smoothed_bezier_curve(absPoints, radius=0.5, degree=degree)
+            traj_full = corner_smoothed_bezier_curve(absPoints, radius=0.8, degree=degree)
             indices = np.linspace(0, len(traj_full)-1, resolution).astype(int)
             traj = traj_full[indices]
-            diffs = np.gradient(traj, axis=0)
-            angles = np.arctan2(diffs[:, 1], diffs[:, 0])
+            
+            # Winkelberechnung
+            t_stuetz = np.linspace(0, 1, len(angles_rad))
+            angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
+            angles = angle_spline(t_vals)
         else:
             raise ValueError(f"Unbekannte Methode: {method}")
 
         plotTrajAufgabenraum(traj, points=absPoints)
 
         traj_diffs = np.vstack((traj[0], np.diff(traj, axis=0)))
+        angle_diffs = np.diff(angles, axis=0)
+        angle_diffs = np.insert(angle_diffs, 0, angles[0])
+        
+        previousRelOffsets = TCPOffsets  # Initialisierung mit der Grundkonfiguration
+        
+        cumulativeAngle = 0
+        
         for i in range(resolution):
             pos = traj_diffs[i]
             pos = absoluteToRelativePoints([pos])[0]
-            angle = angles[i]
-            posVec = targetToNodeListCoords(pos, angle, TCPOffsets)
+            angle = angle_diffs[i]
+            cumulativeAngle += angle
+        
+            # posVec, prev = targetToNodeListCoords(pos, angle, TCPOffsets, previousRelOffsets)
+            posVec, previousRelOffsets = targetToNodeListCoords(pos, cumulativeAngle, TCPOffsets, previousRelOffsets)
+            
             ikObj.InverseKinematicsRelative(None, np.array(posVec))
             actuatorLengths = np.array(ikObj.GetActuatorLength())
-            # self.lengths.append((actuatorLengths - refLength) * 10000)
             self.lengths.append(actuatorLengths)
+
 
         self.lengths = np.array(self.lengths)
 
     def evaluate(self, t):
+        if t >= 1.0:
+            return self.lengths[-1]
+        
         t_clamped = np.clip(t, 0, 1)
         idx_float = t_clamped * (len(self.times) - 1)
         idx_low = int(np.floor(idx_float))

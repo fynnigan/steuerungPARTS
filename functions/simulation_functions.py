@@ -130,8 +130,8 @@ def PreStepUserFunction2(mbs, t):
                 ChangeActorStiffnessStartingNode(mbs ,t, oSpringDamper,positionInteractivNode)
       
                 
-    for oSpringDamper in mbs.variables['springDamperDriveObjects']: 
-        print('actor:',oSpringDamper,'stiffness:',mbs.GetObjectParameter(oSpringDamper,'stiffness'))
+    # for oSpringDamper in mbs.variables['springDamperDriveObjects']: 
+    #     print('actor:',oSpringDamper,'stiffness:',mbs.GetObjectParameter(oSpringDamper,'stiffness'))
 
 
      
@@ -2888,12 +2888,12 @@ def CalculateActorStiffnessStartingNode(relativPosition,mbs,itemNumber):
         stiffness = 1e2
 
     
-    # if config.simulation.constrainActorLength:
-    #     Lmax = config.lengths.maxStroke
-    #     Lmin = config.lengths.minStroke
+    if config.simulation.constrainActorLength:
+        Lmax = config.lengths.maxStroke
+        Lmin = config.lengths.minStroke
         
-    #     if (actorLength <= Lmin) or (actorLength >= Lmax ):
-    #         stiffness = 1e4 #stiffness*1e4
+        if (actorLength <= Lmin) or (actorLength >= Lmax ):
+            stiffness = 1e6 #stiffness*1e4
     
     # print('actor:',itemNumber,'relativPosition',relativPosition,'stiffness:',stiffness)
     
@@ -3048,11 +3048,18 @@ def UserFunctionDriveRefLen1(t, u1, u2):
     l0 = u1      #initial length
     l1 = u2    #final length
     lDrive = l0     
-    if t>t0:
-        if t < t0+dT:
-            lDrive = l0 + (l1-l0) * 0.5*(1-np.cos((t-t0)/dT*np.pi)) #t=[0 .. 25]
-        else:
-            lDrive = l1                 
+    # if t>t0:
+    #     if t < t0+dT:
+    #         lDrive = l0 + (l1-l0) * 0.5*(1-np.cos((t-t0)/dT*np.pi)) #t=[0 .. 25]
+    #     else:
+    #         lDrive = l1          
+    if t <= t0: 
+        lDrive = l0
+    elif t >= t0 + dT:
+        lDrive = l1
+    else:
+        lDrive = l0 + (l1 - l0) * ((t - t0) / dT)    
+
     return lDrive
 
 #user function called at beginning of every time step
@@ -3617,8 +3624,8 @@ if __name__ == "__main__":
                 
                 
                 
-                
-                
+                SC.visualizationSettings.contact.showBoundingBoxes = False
+                SC.visualizationSettings.nodes.showNumbers = False
                 
                 
                 
