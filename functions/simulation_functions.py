@@ -2813,7 +2813,7 @@ def UserFunctionkeyPress(key, action, mods):
     """
     Changing Position of interactiv Node with Key Press (i = Up, j = Left, k = down, l = right / needs new keys -  l also activates/deactivates visualization of load Vectors) 
     """
-    #if chr(key) == 'D' and action == 1: #use capital letters for comparison!!! action 1 == press
+    #if chr(key) == 'D' an d action == 1: #use capital letters for comparison!!! action 1 == press
     #    mbs.variables['activateMouseDrag'] = not mbs.variables['activateMouseDrag']
     if (chr(key) == 'I' or chr(key) == 'J' or chr(key) == 'K' or chr(key) == 'L') and action==2:
         p = mbs.GetNodeParameter(interactivNode,'referenceCoordinates')

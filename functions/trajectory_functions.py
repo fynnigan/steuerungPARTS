@@ -18,7 +18,19 @@ import matplotlib.pyplot as plt
 
 
 class PTPTrajectory:
+    """
+    Class for generating point-to-point trajectories for multiple actuators.
+    """
     def __init__(self, startLengths, targetLengths, vMax, aMax, sync=True):
+        """
+        init function for point-to-point trajectory generation
+        Parameters:
+        - startLengths: array of starting actuator lengths
+        - targetLengths: array of target actuator lengths
+        - vMax: maximum velocity (scalar)
+        - aMax: maximum acceleration (scalar)
+        - sync: boolean indicating if the movement should be synchronized across all actuators 
+        """
         self.startLengths = np.array(startLengths)
         self.targetLengths = np.array(targetLengths)
         self.vMax = vMax
@@ -28,18 +40,26 @@ class PTPTrajectory:
         self.computeTiming()
 
     def computeTiming(self):
+        """
+        Computes the timing parameters for the trajectory based on the start and target lengths,
+        """
+        # Calculate deltas, distances, and directions
         self.deltas = self.targetLengths - self.startLengths
         self.distances = np.abs(self.deltas)
         self.directions = np.sign(self.deltas)
 
         self.triangleProfile = np.zeros(self.numActuators, dtype=bool)
 
+        # Compute timing parameters
         if self.sync:
+            # save max distance
             self.sMax = np.max(self.distances)
 
+            # compute timing for max distance
             t_a = self.vMax / self.aMax
             s_a = 0.5 * self.aMax * t_a**2
 
+            # check if triangle profile is needed and compute acceleration time and total time
             if self.sMax < 2 * s_a:
                 self.triangleProfile[:] = True
                 self.t_accel = np.sqrt(self.sMax / self.aMax)
@@ -54,6 +74,7 @@ class PTPTrajectory:
             self.aMaxVec = np.zeros(self.numActuators)
             self.vMaxVec = np.zeros(self.numActuators)
 
+            # compute individual aMax and vMax for each actuator
             for i in range(self.numActuators):
                 if self.distances[i] == 0 or self.t_total == 0:
                     self.aMaxVec[i] = 0
@@ -62,14 +83,17 @@ class PTPTrajectory:
                     self.aMaxVec[i] = 4 * self.distances[i] / (self.t_total**2)
                     self.vMaxVec[i] = self.aMaxVec[i] * (self.t_total / 2)
 
-        else:  # async
+        else:  # asynchronous
             self.t_accel = np.zeros(self.numActuators)
             self.t_single = np.zeros(self.numActuators)
 
+            # compute timing for each actuator based on aMax and vMax
             for i in range(self.numActuators):
+                # acceleration time and distance
                 t_a = self.vMax / self.aMax
                 s_a = 0.5 * self.aMax * t_a**2
 
+                # check if triangle profile is needed and compute acceleration time and total time
                 if self.distances[i] < 2 * s_a:
                     self.triangleProfile[i] = True
                     self.t_accel[i] = np.sqrt(self.distances[i] / self.aMax)
@@ -80,16 +104,26 @@ class PTPTrajectory:
                     s_const = self.distances[i] - 2 * s_a
                     t_const = s_const / self.vMax
                     self.t_single[i] = 2 * t_a + t_const
+            # total time is the maximum of individual times
             self.t_total = max(self.t_single)
 
     def evaluate(self, t):
+        """
+        Evaluates the trajectory at time t and returns the actuator lengths.
+        Parameters:
+        - t: time at which to evaluate the trajectory
+        Returns:
+        - lengths: array of actuator lengths at time t
+        """
         lengths = np.zeros(self.numActuators)
 
+        # compute lengths for each actuator
         for i in range(self.numActuators):
+            # handle case where distance is zero
             if self.distances[i] == 0:
                 lengths[i] = self.startLengths[i]
                 continue
-
+            # determine parameters based on sync or async
             if self.sync:
                 a = self.aMaxVec[i]
                 v = self.vMaxVec[i]
@@ -101,6 +135,7 @@ class PTPTrajectory:
                 t_a = self.t_accel[i]
                 t_total = self.t_single[i]
 
+            # compute position based on profile type
             if self.triangleProfile[i]:
                 if t < t_a:
                     s = 0.5 * a * t**2
@@ -122,18 +157,27 @@ class PTPTrajectory:
                 else:
                     s = self.distances[i]
 
+            # update length based on direction
             lengths[i] = self.startLengths[i] + self.directions[i] * s
 
         return lengths
     
+    
 def relativeToAbsolutePoints(relativePoints):
+    """
+    transforms a list of relative points to absolute points.
+    """
     absolutePoints = [relativePoints[0]]  # Startpunkt als erster absoluter Punkt
     for i in range(1, len(relativePoints)):
         newPoint = absolutePoints[-1] + relativePoints[i]
         absolutePoints.append(newPoint)
     return np.array(absolutePoints)
 
+
 def absoluteToRelativePoints(absolutePoints):
+    """
+    transforms a list of absolute points to relative points.
+    """
     relativePoints = [absolutePoints[0]]  # erster Punkt als Startpunkt
     for i in range(1, len(absolutePoints)):
         rel = absolutePoints[i] - absolutePoints[i - 1]
@@ -143,6 +187,9 @@ def absoluteToRelativePoints(absolutePoints):
 
     
 def plotTrajAufgabenraum(xy_array, points=None):
+    """
+    Plots a 2D trajectory in the task space.
+    """
     plt.figure()
     plt.plot(xy_array[:, 0], xy_array[:, 1], label='Trajektorie')
     if points is not None:
@@ -157,14 +204,12 @@ def plotTrajAufgabenraum(xy_array, points=None):
 
 def rotatePointsAroundTCP(offsets, angle):
     """
-    Rotiert eine Liste von 2D-Offsets um den TCP (also um den Ursprung).
-
+    rotates a list of 2D points around the TCP by a given angle.
     Parameters:
-    - offsets: Liste von 2D-Vektoren (z. B. relative Punkte zum TCP)
-    - angle: Winkel in Radiant (im mathematisch positiven Sinn)
-
+    - offsets: list of 2D-Vectors 
+    - angle: angle in radians
     Returns:
-    - Liste von rotierten 2D-Vektoren
+    - rotatedOffsets: list of rotated 2D-Vectors
     """
     R = np.array([
         [np.cos(angle), -np.sin(angle)],
@@ -176,52 +221,61 @@ def rotatePointsAroundTCP(offsets, angle):
 
 def targetToNodeListCoords(pos, angle, relOffsetsToTCP, previousRelOffsets=None):
     """
-    Berechnet die Zielkoordinaten für die Node-Liste relativ zu ihrer vorherigen Position.
-
+    Calculates the target coordinates for the node list relative to their previous position.
     Parameters:
-    - pos: aktuelle Verschiebung des TCP
-    - angle: aktuelle Rotation (im Bogenmaß)
-    - relOffsetsToTCP: ursprüngliche relative Positionen der Punkte zum TCP
-    - previousRelOffsets: relative Positionen der Punkte aus dem vorherigen Schritt (optional)
-
+    - pos: current displacement of the TCP
+    - angle: current rotation (in radians)
+    - relOffsetsToTCP: original relative positions of the points to the TCP
+    - previousRelOffsets: relative positions of the points from the previous step (optional)
     Returns:
-    - target: Liste mit [x0, y0, dx1, dy1, dx2, dy2, ...]
-    - rotatedRelToTCP: aktuelle (gedrehte) Positionen, zur Weitergabe für den nächsten Schritt
+    - target: list with [x0, y0, dx1, dy1, dx2, dy2, ...]
+    - rotatedRelToTCP: current (rotated) positions, to be passed on for the next step
     """
-    # Punkte um den TCP drehen
+    # rotate relative offsets around TCP
     rotatedRelToTCP = rotatePointsAroundTCP(relOffsetsToTCP, angle)
 
-    # Differenz zum vorherigen Schritt oder zur Grundkonfiguration
+    # deltas = currentRel - originalRel
     if previousRelOffsets is not None:
         deltaOffsets = [rot - prev for rot, prev in zip(rotatedRelToTCP, previousRelOffsets)]
     else:
         deltaOffsets = [rot - orig for rot, orig in zip(rotatedRelToTCP, relOffsetsToTCP)]
 
-    # Zielpunkte = TCP-Position + relative Änderung
+    # target position of nodes = pos of TCP + delta
     relativeTargetOffsets = [pos + delta for delta in deltaOffsets]
 
-    # Zielstruktur erzeugen
+    # create target list
     target = [pos[0], pos[1]]
     for p in relativeTargetOffsets:
-        target.extend(p)  # fügt x, y direkt an
+        target.extend(p) # add dx, dy for each node
 
     return target, rotatedRelToTCP
 
 
 
 def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
+    """
+    Generates a corner-smoothed Bezier curve through a series of points.
+    Parameters:
+    - points: list of 2D points (numpy array or list of lists)
+    - radius: radius for corner smoothing
+    - n_per_corner: number of points to generate per corner
+    - degree: degree of the Bezier curve (2, 3, or 5
+    Returns:
+    - curve: numpy array of points along the smoothed Bezier curve
+    """
     def unit(v):
         norm = np.linalg.norm(v)
         return v / norm if norm != 0 else v
     
     if len(points) == 2:
-        # Bei nur 2 Punkten: einfache Gerade zurückgeben
+        # Only two points, return straight line
         return np.linspace(points[0], points[1], n_per_corner)
 
     segments = []
     points = np.asarray(points)
     n = len(points)
     prev_out = None
+    # Iterate through points, creating Bezier curves at corners
     for i in range(1, n-1):
         p0, p1, p2 = points[i-1], points[i], points[i+1]
         v1 = unit(p0 - p1)
@@ -231,6 +285,7 @@ def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
         p1_out = p1 + v2 * d
 
         t = np.linspace(0, 1, n_per_corner)
+        # Bezier curve calculation
         if degree == 2:
             cp = p1
             bezier = ((1 - t)**2)[:, None] * p1_in + 2 * ((1 - t)*t)[:, None] * cp + (t**2)[:, None] * p1_out
@@ -245,8 +300,8 @@ def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
             cp4 = p1_out + 0.2 * (p1 - p1_out)
             bezier = ((1 - t)**5)[:, None] * p1_in + 5*((1 - t)**4 * t)[:, None] * cp1 + 10*((1 - t)**3 * t**2)[:, None] * cp2 + 10*((1 - t)**2 * t**3)[:, None] * cp3 + 5*((1 - t) * t**4)[:, None] * cp4 + (t**5)[:, None] * p1_out
         else:
-            raise ValueError("Grad nicht unterstützt")
-
+            raise ValueError("Degree must be 2, 3, or 5.")
+        # Add line segment from previous point to p1_in
         if i == 1:
             segments.append(np.linspace(points[0], p1_in, n_per_corner))
         else:
@@ -260,7 +315,21 @@ def corner_smoothed_bezier_curve(points, radius=0.5, n_per_corner=20, degree=3):
 
 
 class CPTrajectory:
+    """
+    Class for generating continuous point-to-point trajectories in task space and converting them to actuator lengths.
+    """
     def __init__(self, poseVec, resolution, ikObj, ikineNodeList, TCPOffsets, refLength, method="spline"): 
+        """
+        init function for continuous point-to-point trajectory generation
+        Parameters:
+        - poseVec: list of tuples [(pos1, angle1), (pos2, angle2), ...] where pos is a 2D vector and angle is in radians
+        - resolution: number of points in the trajectory
+        - ikObj: inverse kinematics object with method InverseKinematicsRelative and GetActuatorLength
+        - ikineNodeList: list of node indices for inverse kinematics (not used in this function)
+        - TCPOffsets: list of 2D vectors representing the offsets of nodes relative to the TCP
+        - refLength: reference length for the actuators (not used in this function)
+        - method: interpolation method ("linear", "spline", "bezier2", "bezier3", "bezier5")
+        """
         self.lengths = []
         self.times = np.linspace(0, 1, resolution)
         self.t_total = resolution
@@ -269,6 +338,7 @@ class CPTrajectory:
         absPoints = relativeToAbsolutePoints(points)
 
         if method == "linear":
+            # lienar interpolation
             t_vals = np.linspace(0, 1, resolution)
             segments = [
                 np.linspace(absPoints[i], absPoints[i + 1], resolution // (len(absPoints) - 1), endpoint=False)
@@ -276,67 +346,81 @@ class CPTrajectory:
             ]
             traj = np.vstack(segments + [absPoints[-1][None]])
             
-            # Winkelberechnung
+            # angle calculation
             t_stuetz = np.linspace(0, 1, len(angles_rad))
             angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
             angles = angle_spline(t_vals)
             
         elif method == "spline":
+            # spline interpolation
             tck, _ = splprep(absPoints.T, s=1)
             t_vals = np.linspace(0, 1, resolution)
             traj = np.array(splev(t_vals, tck)).T
         
-            # Winkelberechnung
+            # angle calculation
             t_stuetz = np.linspace(0, 1, len(angles_rad))
             angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
             angles = angle_spline(t_vals)
             
-            # angles = np.zeros(len(t_vals))
         elif method in ("bezier2", "bezier3", "bezier5"):
+            # Bezier curve with corner smoothing
             t_vals = np.linspace(0, 1, resolution)
+            # Determine degree based on method
             degree = {"bezier2": 2, "bezier3": 3, "bezier5": 5}[method]
+            # Generate Bezier curve
             traj_full = corner_smoothed_bezier_curve(absPoints, radius=0.8, degree=degree)
+            # Resample to desired resolution
             indices = np.linspace(0, len(traj_full)-1, resolution).astype(int)
             traj = traj_full[indices]
             
-            # Winkelberechnung
+            # angle calculation
             t_stuetz = np.linspace(0, 1, len(angles_rad))
             angle_spline = interp1d(t_stuetz, angles_rad, kind='linear')
             angles = angle_spline(t_vals)
         else:
             raise ValueError(f"Unbekannte Methode: {method}")
 
-        plotTrajAufgabenraum(traj, points=absPoints)
+        # plotTrajAufgabenraum(traj, points=absPoints)
 
         traj_diffs = np.vstack((traj[0], np.diff(traj, axis=0)))
         angle_diffs = np.diff(angles, axis=0)
         angle_diffs = np.insert(angle_diffs, 0, angles[0])
         
-        previousRelOffsets = TCPOffsets  # Initialisierung mit der Grundkonfiguration
-        
+        # initial previous offsets
+        previousRelOffsets = TCPOffsets  
+    
         cumulativeAngle = 0
-        
+
+        # compute actuator lengths for each point in the trajectory    
         for i in range(resolution):
             pos = traj_diffs[i]
             pos = absoluteToRelativePoints([pos])[0]
             angle = angle_diffs[i]
             cumulativeAngle += angle
         
-            # posVec, prev = targetToNodeListCoords(pos, angle, TCPOffsets, previousRelOffsets)
+            # get positions for all MCPs
             posVec, previousRelOffsets = targetToNodeListCoords(pos, cumulativeAngle, TCPOffsets, previousRelOffsets)
             
+            # compute inverse kinematics
             ikObj.InverseKinematicsRelative(None, np.array(posVec))
             actuatorLengths = np.array(ikObj.GetActuatorLength())
             self.lengths.append(actuatorLengths)
 
-
         self.lengths = np.array(self.lengths)
 
     def evaluate(self, t):
-        if t >= 1.0:
-            return self.lengths[-1]
+        """
+        Evaluates the trajectory at time t and returns the actuator lengths.
+        Parameters:
+        - t: time at which to evaluate the trajectory
+        Returns:
+        - lengths: array of actuator lengths at time t
+        """
+        t_clamped = np.clip(t/self.t_total, 0, 1)
         
-        t_clamped = np.clip(t, 0, 1)
+        if t_clamped >= 1.0:
+            return self.lengths[-1]
+        # linear interpolation between points
         idx_float = t_clamped * (len(self.times) - 1)
         idx_low = int(np.floor(idx_float))
         idx_high = min(idx_low + 1, len(self.times) - 1)

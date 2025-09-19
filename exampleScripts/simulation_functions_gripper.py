@@ -1,25 +1,4 @@
-﻿#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Data and information that support the findings of the article:
-# M. Pieber and Z. Zhang and P. Manzl and J. Gerstmayr, SURROGATE MECHANICAL 
-# MODEL FOR PROGRAMMABLE STRUCTURES
-# Proceedings of the ASME 2024
-#
-# Details:             
-# Circular hinge with beam elements and cross-spring pivot with beam elements
-# Compute data for six-bar linkage with polynomial fitting and 
-#
-#
-#
-# Author:   M. Pieber
-# Date:     2024-03-11
-# Testet with exudyn version: 1.8.0
-#
-# Copyright:This file is part of Exudyn. Exudyn is free software. You can 
-#           redistribute it and/or modify it under the terms of the Exudyn 
-#           license. See 'LICENSE.txt' for more details.
-#
-#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-import os
+﻿import os
 import sys
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -49,7 +28,7 @@ from functions import data_functions as df
 #from functions import marker_functions as mf
 from functions import measurement_functions as mef
 from functions import webserver_functions as wf
-import functions.trajectory_functions as tf
+from functions import trajectory_functions as tf
 
 import exudyn as exu
 from exudyn.utilities import*
@@ -343,8 +322,6 @@ def createKinematicModel(mbs, mbs2, adeMoveList2=None):
     ######################################################################### 
     #########################################################################    
 
-    
-    
     ikObj = InverseKinematicsATE(mbs2, sensorMbs2TCPList, mbs, oGround2, ADE2)
                   
     return ikObj, mbs2, sensorMbs2TCPList
@@ -395,11 +372,6 @@ def createSurrogateModel(mbs, adeNodes):
                 adeIDs.append(ID)
 
     startSimulation = True
-
-    # if config.simulation.useMoveList:
-        # adeMoveList = df.adeMoveList()
-        # adeMoveList.FromJson(client.Get('MoveList'))
-
 
     setConfigFileSurrogateModel()      
 
@@ -486,11 +458,6 @@ def CalculateNextMovementCommandsFromSensor(actorLength,adeMoveList):
 
 
 
-
-
-
-
-
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## Initialization of Module
@@ -515,8 +482,11 @@ config.simulation.constrainActorLength = True
 ##simulation options
 displaySimulation=True
 
-simulate4ATCs=False
+
 simulateGripper=True 
+parallelGripper=True # True: parallel, False: adaptiv
+
+simulate4ATCs=False
 simulateTowerADEs=False
 simulateRabbit=False
 simulateDuckBridgeCraneTower=False
@@ -563,13 +533,11 @@ if simulateGripper:
         
         sizeOfWall=[0.002,0.002,0.002]
         rhoWood=680 #kg/m^2 680
-        # passt genau für 0.229, 0.1 und dann greifen bei gripper 2 hoch
-        # p0 = np.array([0.229*3/2,0.229*4+0.229/2,0]) 
-        # passt genau für greifen bei gripper 2 hoch
-        # p0 = np.array([0.229/2,0.229*3+0.229/2,0])
-        p0 = np.array([1.2,1.075,0]) 
-        
-        
+
+        # Position of object
+        p0 = np.array([0.9,1.6,0]) 
+                  
+    
         # color4wall = [0.9,0.9,0.7,0.25] # grau
         color4wall = [0.0, 0.0, 1.0, 0.8]  # blau
         gWall = GraphicsDataCylinder(pAxis=[0,0,-0.1], vAxis=[0,0,0.2], radius=sizeOfCylinder, color=color4wall)
@@ -587,13 +555,14 @@ if simulateGripper:
     adeNodes = {}
     adeNodes = df.ElementDefinition()
     
-    # nx=2
-    # ny=2
-    # lengthInitX=0.229*nx
-    # lengthInitY=0.229*ny
-    # GenerateGridSimulation(nx,ny-1,adeNodes)
-    
-    adeNodes.ReadMeshFile('data//experiments//gripper//initial_gripper_parallel')
+    # read structure from file
+    if parallelGripper:
+        adeNodes.ReadMeshFile('data//experiments//gripper//initial_gripper_parallel')
+        nodeList=[12,11,13,15,16,19,20] #nodes to constrain
+    else:
+        adeNodes.ReadMeshFile('data//experiments//gripper//initial9_gripper4')
+        nodeList=[12,11,13,19,20] #nodes to constrain
+        
     adeMoveList = df.adeMoveList('data//experiments//gripper//configuration_gripper.txt')
     # adeNodes.SetNodeNumbersToAde()
 
@@ -603,11 +572,10 @@ if simulateGripper:
     adeNodes.SetNodeNumbersToAde()
     adeNodes.SetADEPointsOfNode() 
 
-    # nodeList=[7,8,9,15,16]
-    nodeList=[12,11,13,15,16,19,20] #nodes to constrain
-    
+    # ID of TCP
     TCP = nodeList[0]
     
+    # coordinates of all MCPs except TCP
     TCPcoords = []
     for nodeID in nodeList:
         if nodeID == TCP:
@@ -615,10 +583,10 @@ if simulateGripper:
         coord = adeNodes.nodeDefinition[nodeID]
         TCPcoords.append([coord[0], coord[1]])
     
-    # Koordinaten des Referenz TCPs    
+    # coordinates of TCP 
     TCPRefCoord = np.array(adeNodes.nodeDefinition[TCP])
 
-    # Offset aller TCPs zu Referenz TCP
+    # offsets of all MCPs relative to TCP
     TCPOffsets = []
     for coord in TCPcoords:
         offset = np.array(coord) - TCPRefCoord
@@ -648,18 +616,15 @@ useInverseKinematic = True
 #Options for Visualization
 config.simulation.frameList = False
 config.simulation.showJointAxes = False
-
 config.simulation.animation = False
-
 config.simulation.showLabeling = False #shows nodeNumbers, ID and sideNumbers, simulationTime
-
 
 visualizeTrajectory = True
 visualizeSurfaces = False
 
 
-CPresolution = 30
-LinResolution = 30
+# resolution for trajectory ('spline', 'linear', 'bezier)
+resolution = 30
 
 
 def sensorList(nodeList, adeNodes, mbs):  
@@ -672,52 +637,53 @@ def sensorList(nodeList, adeNodes, mbs):
     return sensorTCPList
 
 
-# set max velocity and acceleration
+# max velocity and acceleration
 # fast:
 # vMax = 0.0075
 # aMax = 0.005
 # slow:
 vMax = 0.0075
 aMax = 0.0025
+# very slow for contact measurements:
+# vMax = 0.0025
+# aMax = 0.001
+
 
 # store node out of nodeList to use for ikine calculation                    
 ikineNodeList = [i for i in range(len(nodeList))]
 
 
-def MCPsRelativeToTCP(sensorTCP):
-    
+def targetToNodeListCoords(pos, angle, sensorTCP):
+    """
+    Function to convert target position and angle of TCP to target coordinates of all MCPs
+    """
+    # coordinates of all MCPs except TCP
     MCPcoords = []
     for s in sensorTCP[1:]:
         MCPcoords.append(np.array(mbs.GetSensorValues(s)[0:2]))
     
-    # Koordinaten des TCPs    
+    # coordinates of TCP
     TCPcoords = np.array(mbs.GetSensorValues(sensorTCP[0])[0:2])
 
-    # Offset aller MCPs zu TCP
-    MCPtoTCPoffsetList = []
+    # all offsets of MCPs relative to TCP
+    offsetList = []
     for coord in MCPcoords:
         offset = np.array(coord) - TCPcoords
-        MCPtoTCPoffsetList.append(offset)
-    
-    return MCPtoTCPoffsetList
-
-
-def targetToNodeListCoords(pos, angle, sensorTCP):
-    offsetList = MCPsRelativeToTCP(sensorTCP)
-
-    # Rotationsmatrix
+        offsetList.append(offset)
+        
+    # rotationsmatrix
     R = np.array([
         [np.cos(angle), -np.sin(angle)],
         [np.sin(angle),  np.cos(angle)]
     ])
     
-    # Rotierte Zielkoordinaten berechnen relativ zu hauptTCP
+    # rotated targets relative to TCP
     rotatedTargets = [pos + R @ offset for offset in offsetList]
 
-    # neue Koordinaten relativ zu ihrer vorherigen Position
+    # new coordinates relative to their previous position
     relativeTargetOffsets = np.array(rotatedTargets) - np.array(offsetList)
 
-    # alle zielpunkte anfuegen
+    # final target list
     target = [pos[0], pos[1]]
     for i in relativeTargetOffsets:
         target.append(i[0])
@@ -726,18 +692,30 @@ def targetToNodeListCoords(pos, angle, sensorTCP):
     return target
 
 
-def OpenCloseGripper(currentLen, ikObj, phi, close=True, parallel=True, d=0.2): 
+def OpenCloseGripper(currentLen, ikObj, phi, close=True): 
+    """
+    Function to calculate trajectory for opening and closing the gripper for all MCPs
+    close: True for closing, False for opening
+    phi: angle of gripper
+    """
+    d = 0.2 if parallelGripper else 0.3
+    
     c, s = np.cos(phi), np.sin(phi)
-    sign = 1 if close else -1
+    sign = 1 if close else -1    
+    if parallelGripper:
+        target = [
+             sign*d*c,  sign*d*s,
+            -sign*d*c, -sign*d*s,
+             sign*d*c,  sign*d*s,
+            -sign*d*c, -sign*d*s,
+        ]
+    else:
+        target = [
+             sign*d*c,  sign*d*s,
+            -sign*d*c, -sign*d*s,
+        ]
         
-    target = [
-         sign*d*c,  sign*d*s,
-        -sign*d*c, -sign*d*s,
-         sign*d*c,  sign*d*s,
-        -sign*d*c, -sign*d*s,
-    ]
     target = np.concatenate((np.zeros(6), target))
-
     ikObj.InverseKinematicsRelative(None, target)
     targetLen = np.array(ikObj.GetActuatorLength())
     
@@ -745,6 +723,10 @@ def OpenCloseGripper(currentLen, ikObj, phi, close=True, parallel=True, d=0.2):
     
 
 def calcTrajPTP(currentLen, targetPose, ikObj, sensorTCP, sync=True):
+    """
+    Function to calculate trajectory for point-to-point movement of TCP
+    """
+    # unpack targetPose
     targetPos, targetAng = targetPose
     
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
@@ -752,37 +734,37 @@ def calcTrajPTP(currentLen, targetPose, ikObj, sensorTCP, sync=True):
     else:
         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
 
+    # calculate target coordinates of all MCPs
     posVec = targetToNodeListCoords(targetPos, targetAng, sensorTCP)
     
+    # calculate relativ position to current position
     realPositions = np.array([mbs.GetSensorValues(s)[0:2] for s in sensorTCP]) # in simulation
     ikSensorIDs = list(range(51, 58))
     internalPositions = np.array([ikObj.mbsIK.GetSensorValues(i)[0:2] for i in ikSensorIDs]) # in ikObj
     positionDelta = (realPositions - internalPositions).flatten()
     posVec += positionDelta
     
+    # calculate target lengths
     ikObj.InverseKinematicsRelative(None, np.array(posVec))
-    # targetLen = ((np.array(ikObj.GetActuatorLength()) - refLength) * 10000)/100
     targetLen = np.array(ikObj.GetActuatorLength())
     
-    # realLength = refLength + targetLen / 10000
-    realLength = targetLen
-    if min(realLength) < 0.2285 or max(realLength) > 0.3295:
-        print(targetPos, ': liegt außerhalb des Konfigurationsraumes mit max:', max(realLength), 'und min: ', min(realLength))
-    
-    traj = tf.PTPTrajectory(currentLen, targetLen, vMax, aMax, sync)
-    return traj
+    # return trajectory
+    return tf.PTPTrajectory(currentLen, targetLen, vMax, aMax, sync)
 
 
 def calcTrajCP(currentLen, poseVec, ikObj, method='spline'):
+    """
+    Function to calculate trajectory for continuous path movement of TCP
+    method: 'spline', 'linear', 'bezier3', 'bezier5'
+    """
     if config.simulation.massPoints2DIdealRevoluteJoint2D:
         refLength = (config.lengths.L0) 
     else:
         refLength = (config.lengths.L0-2*(config.lengths.L1+config.lengths.L2))
     
-    traj = tf.CPTrajectory(poseVec, CPresolution, ikObj, ikineNodeList, TCPOffsets, refLength, method)
-    return traj
+    return tf.CPTrajectory(poseVec, resolution, ikObj, ikineNodeList, TCPOffsets, refLength, method)
 
-
+# states of the gripper state machine
 class gripperStates(Enum):
     IDLE = auto()
     APPROACH_OBJECT = auto()
@@ -797,6 +779,9 @@ class gripperStates(Enum):
     
     
 def calcPositions(myDict):
+    """
+    Function to precalculate relative positions for the gripper state machine
+    """
     posObj = myDict['posObj']
     targetPosObj = myDict['targetPosObj']
     myDict['gripperAngle'] = 0
@@ -805,23 +790,24 @@ def calcPositions(myDict):
     
     relPosVec = []
 
+    # angle of object relative to origin
     alpha1 = np.arctan2(posObj[1], posObj[0])
-    alpha1 = -np.pi / 16 * 7 + np.pi/2
+    # distance of object to origin
     distObj = np.hypot(posObj[0], posObj[1])
 
-    # Schritt 1: Annäherung
+    # Schritt 1: approach object
     distTCP1 = distObj - 1.65 * distToObj
-    tcp1 = np.array([distTCP1 * np.cos(alpha1)-0.4, distTCP1 * np.sin(alpha1)+0.75])
+    tcp1 = np.array([distTCP1 * np.cos(alpha1), distTCP1 * np.sin(alpha1)])
     relPosVec.append((tcp1 - TCPcoords, alpha1 - np.pi / 2))
 
-    # Schritt 2: aufs Objekt zubewegen (einfache Distanz zum Objekt)
+    # Schritt 2: position gripper (einfache Distanz zum Objekt)
     distTCP2 = distObj - distToObj
-    tcp2 = np.array([distTCP2 * np.cos(alpha1)-0.4, distTCP2 * np.sin(alpha1)+0.75])
+    tcp2 = np.array([distTCP2 * np.cos(alpha1), distTCP2 * np.sin(alpha1)])
     relPosVec.append((tcp2 - tcp1, 0))
     
-    # Schritt 3: Greifen
+    # Schritt 3: grip object
     
-    # Schritt 4: Wegbewegen (einfache Distanz zum Objekt)
+    # Schritt 4: move object to target position
     alpha2 = np.arctan2(targetPosObj[1], targetPosObj[0])
     distTarget = np.hypot(targetPosObj[0], targetPosObj[1])
     
@@ -829,37 +815,35 @@ def calcPositions(myDict):
     tcp3 = np.array([distTCP3 * np.cos(alpha2), distTCP3 * np.sin(alpha2)])
     relPosVec.append((tcp3 - tcp2, alpha2 - alpha1))
     
-    # Schritt 5: loslassen
+    # Schritt 5: open gripper
 
-    # Schritt 6: Greifer entfernen (doppelte Distanz zum Objekt)
+    # Schritt 6: retract gripper
     distTCP4 = distTarget - 1.5 * distToObj
     tcp4 = np.array([distTCP4 * np.cos(alpha2), distTCP4 * np.sin(alpha2)])
     relPosVec.append((tcp4 - tcp3, alpha2 - np.pi / 2))
     
-    myDict['relPosVec'] = relPosVec
+    poses = np.array([
+        [*tcp1, alpha1 - np.pi / 2],
+        [*tcp2, alpha1 - np.pi / 2],
+        [*tcp3, alpha2 - alpha1 - np.pi / 2],
+        [*tcp4, 0]
+    ])
+    print("Posen:", poses)
     
+    myDict['relPosVec'] = relPosVec
     return myDict
     
 
-
 def functionStateMachine(t, l0, ikObj, myState, myDict):
+    """
+    Function for the gripper state machine 
+    """
     posObj = myDict['posObj']
     sContactForceList = myDict['sContactForceList']
     sensorTCP = myDict['sensorTCP']
     relPosVec = myDict['relPosVec']
     TCPcoords = adeNodes.nodeDefinition[TCP]
     TCPtoObj = posObj - TCPcoords
-    
-    # traj = calcTrajPTP(l0, relPosVec[0], ikObj, sensorTCP, sync=True)
-    # traj = calcTrajPTP(l0, relPosVec[1], ikObj, sensorTCP, sync=True)
-    # traj = OpenCloseGripper(l0, ikObj, myDict['gripperAngle'], close=True)
-    # traj = calcTrajPTP(l0, relPosVec[2], ikObj, sensorTCP, sync=True)
-    # traj = OpenCloseGripper(l0, ikObj, myDict['gripperAngle'], close=False)
-    # traj = calcTrajPTP(l0, relPosVec[3], ikObj, sensorTCP, sync=True)
-    # poseVec = [([0, 0], 0), targetPose]
-    # traj = calcTrajCP(l0, poseVec, ikObj, method='linear')
-    
-    
     
     l1 = np.zeros(len(l0))
     if 'tLocal' in myDict:
@@ -873,25 +857,35 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
                 targetPose = relPosVec[0]
                 myDict['gripperAngle'] += targetPose[1]
                 
-                # poseVec = [
-                #     ([0, 0], 0),    
-                #     ([targetPose[0][0]/2, 0], targetPose[1]/2),    
-                #     ([targetPose[0][0]/2, 0], targetPose[1]/2),      
-                #     ([0, targetPose[0][1]], targetPose[1]),    
-                # ]
+                # 'spline', 'linear', 'bezier3', 'bezier5', 'PTP'
+                method = 'PTP' 
+                sync = True
+
+                # calculate trajectory
+                if method == 'spline' or method == 'linear' or method == 'bezier3' or method == 'bezier5':
+                    poseVec = [
+                        ([0, 0], 0),    
+                        ([targetPose[0][0]/2, 0], targetPose[1]/2),    
+                        ([targetPose[0][0]/2, 0], targetPose[1]/2),      
+                        ([0, targetPose[0][1]], targetPose[1]),    
+                    ]
+                    traj = calcTrajCP(l0, poseVec, ikObj, method)
+                else:
+                    traj = calcTrajPTP(l0, targetPose, ikObj, sensorTCP, sync)
                 
-                traj = calcTrajPTP(l0, targetPose, ikObj, sensorTCP, sync=True)
-                # traj = calcTrajCP(l0, poseVec, ikObj, method='spline')
-                
+                # save trajectory in dictionary
                 myDict['trajApproach'] = traj
                 tLocal = 0
                 myDict['tLocal'] = tLocal
             else:
+                # use existing trajectory
                 traj = myDict['trajApproach']
             
+            # evaluate trajectory at current time
             tTraj = traj.t_total
             l1 = traj.evaluate(tLocal)
             
+            # check if trajectory is finished and switch to next state
             if tLocal+1 > tTraj:
                 myState = gripperStates.POSITION_GRIPPER
         
@@ -927,15 +921,15 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
             tTraj = traj.t_total
             l1 = traj.evaluate(tLocal)
             
-            # check if contact force is higher than schwellwert
-            threshold = 1e-6
+            threshold = 5e-7
             
-            for s in sContactForceList:
+            # check if contact force is higher than threshold
+            for s in sContactForceList[4:]:
                 data = mbs.GetSensorStoredData(s)
                 forceNorm = np.linalg.norm(data[:, 1:4], axis=1)
-                print('max kraft an Kontakt:', max(forceNorm))
+                print('max an Kontakt:', max(forceNorm))
                 if np.any(forceNorm > threshold):
-                    print('kraft auf Kontakt hat schwellwert überschritten')
+                    print('contact force surpassed threshold')
                     myDict['contactThresholdTime'] = tLocal
                     myState = gripperStates.MOVE_OBJECT
                     l1 = np.zeros(len(l1))
@@ -950,9 +944,6 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
                 myDict['gripperAngle'] += targetPose[1]
                 
                 traj = calcTrajPTP(l0, targetPose, ikObj, sensorTCP, sync=True)
-                # poseVec = [([0, 0], 0), (targetPose[0], 0)]
-                # traj = calcTrajCP(l0, poseVec, ikObj, method='linear')
-                
                 
                 myDict['trajMoveObject'] = traj
                 tLocal = 0
@@ -991,8 +982,6 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
                 myDict['gripperAngle'] += targetPose[1]
                 
                 traj = calcTrajPTP(l0, targetPose, ikObj, sensorTCP, sync=True)
-                # poseVec = [([0, 0], 0), targetPose]
-                # traj = calcTrajCP(l0, poseVec, ikObj, method='linear')
                 
                 myDict['trajRetractGripper'] = traj
                 tLocal = 0
@@ -1007,6 +996,8 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
                 myState = gripperStates.IDLE
                 
         case gripperStates.TEST_CP:
+            # state for testing continuous path movement
+
             if 'trajCPTest' not in myDict:
                 # poseVec = [
                 #     ([0, 0], 0),
@@ -1035,12 +1026,14 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
                 traj = myDict['trajCPTest']
             
             tTraj = traj.t_total
-            l1 = traj.evaluate(tLocal/CPresolution)
+            l1 = traj.evaluate(tLocal/resolution)
             
             if tLocal+1 > tTraj:
                 print('test durchgeführt')
         
         case gripperStates.TEST_PTP:    
+            # state for testing point-to-point movements
+
             if 'trajPTPTest' not in myDict:
                 # vecRel = [posObj[0] - targetPosObj[0], posObj[1] - targetPosObj[1]]
                 # targetPose = (vecRel, 0)
@@ -1067,107 +1060,55 @@ def functionStateMachine(t, l0, ikObj, myState, myDict):
         return l0, myState, myDict
     return l1, myState, myDict 
 
-
-
-def plotContactForceNorms(mbs, sContactForceList):
-    """
-    Plotte die Norm der Kontaktkräfte aller Sensoren in sContactForceList.
-
-    Args:
-        mbs: Exudyn MultibodySystem
-        sContactForceList: Liste von Sensor-IDs (jeweils für ein ObjectContactSphereSphere)
-    """
-    plt.figure(figsize=(10,6))
     
-    for s in sContactForceList:
+def appendContactForcesToCSV(mbs, sContactForceList, fileName='contactForcesParallel.csv'):
+    """
+    saves contact forces of all sensors in sContactForceList to a CSV file
+    only every 10th row is saved to reduce file size
+    structure: time, sensor_52, sensor_53, ...
+    """
+
+    # save location relative to script directory
+    baseDir = os.path.dirname(__file__)
+    csvFilePath = os.path.join(baseDir, '..', fileName)
+
+    # read data from all sensors
+    sensorData = {}
+    minLength = None
+    for sID in sContactForceList:
         try:
-            data = mbs.GetSensorStoredData(s)  # Spalten: t, Fx, Fy, Fz
-            t = data[:, 0]
-            tCorrected = t.copy()
-            offset = 0
-            
-            for i in range(1, len(t)):
-                if tCorrected[i] < tCorrected[i-1]:
-                    # Zeitsprung erkannt → neuen Offset berechnen
-                    offset += tCorrected[i-1]
-                tCorrected[i] += offset
-                
-            forceNorm = np.linalg.norm(data[:, 1:4], axis=1)  # Norm über Fx, Fy, Fz
-            plt.plot(tCorrected, forceNorm, label=f'Sensor {s}')
-        except:
-            print(f"Fehler beim Zugriff auf Sensor {s}")
-    
-    plt.xlabel('Zeit [s]')
-    plt.ylabel('Kraftnorm [N]')
-    plt.title('Norm der Kontaktkräfte (ObjectContactSphereSphere)')
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    
-def appendContactForcesToCSV(mbs, sContactForceList, fileName='contactForces.csv'):
-    """
-    Fügt Kontaktkraft-Daten aus Exudyn-Sensoren fortlaufend in eine CSV-Datei im übergeordneten Verzeichnis von exampleScripts ein.
-    
-    - Die Zeitwerte werden NICHT verändert oder aufaddiert.
-    - Es wird automatisch ein Header erstellt, wenn die Datei neu ist.
+            data = mbs.GetSensorStoredData(sID)
+            times = np.array([round(row[0], 2) for row in data])
+            # calculate norm of force vector to further reduce data size
+            forces = np.array([np.linalg.norm(row[1:4]) for row in data])
+            sensorData[sID] = (times, forces)
+            if minLength is None:
+                minLength = len(times)
+            else:
+                minLength = min(minLength, len(times))
 
-    Args:
-        mbs: Exudyn MultibodySystem
-        sContactForceList: Liste von Sensor-IDs (z. B. von ObjectContactSphereSphere)
-        fileName: Name der CSV-Datei
-    """
-    # Speicherort relativ zum Skriptverzeichnis
-    baseDir = os.path.dirname(__file__)
-    csvFilePath = os.path.join(baseDir, '..', fileName)
+        except Exception as e:
+            print(f"Fehler beim Zugriff auf Sensor {sID}: {e}")
 
-    # Öffne CSV im Anhang-Modus
-    with open(csvFilePath, 'a', newline='') as csvfile:
+    indices = np.arange(0, minLength, 10)
+
+    # write to CSV
+    with open(csvFilePath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
 
-        # Schreibe Header falls Datei neu
-        if os.path.getsize(csvFilePath) == 0:
-            writer.writerow(['time', 'sensorID', 'Fx', 'Fy', 'Fz', 'Fnorm'])
+        # write header
+        header = ['time'] + [f'sensor_{sID}' for sID in sContactForceList]
+        writer.writerow(header)
 
-        # Sensor-Daten einfügen
-        for sID in sContactForceList:
-            try:
-                data = mbs.GetSensorStoredData(sID)
-                for row in data:
-                    t = row[0]
-                    fx, fy, fz = row[1:4]
-                    fnorm = np.linalg.norm([fx, fy, fz])
-                    writer.writerow([t, sID, fx, fy, fz, fnorm])
-            except:
-                print(f"Fehler beim Zugriff auf Sensor {sID}")
-                
-def writeToCSV(data, fileName):
-    
-    # Speicherort relativ zum Skriptverzeichnis
-    baseDir = os.path.dirname(__file__)
-    csvFilePath = os.path.join(baseDir, '..', fileName)
-
-    # Falls nur eine einzelne Zeile übergeben wurde → in Liste verpacken
-    if isinstance(data[0], (int, float)):
-        data = [data]
-
-    numColumns = len(data[0])
-    fileExists = os.path.exists(csvFilePath)
-    fileIsEmpty = not fileExists or os.path.getsize(csvFilePath) == 0
-
-    with open(csvFilePath, 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-
-        if fileIsEmpty:
-            headers = [f"col{i}" for i in range(numColumns)]
-            writer.writerow(headers)
-
-        for row in data:
-            if len(row) != numColumns:
-                raise ValueError("Alle Zeilen müssen die gleiche Anzahl an Spalten haben")
+        # write data rows
+        for i in indices:
+            t = sensorData[sContactForceList[0]][0][i]
+            row = [round(t, 1)]
+            for sID in sContactForceList:
+                row.append(sensorData[sID][1][i])
             writer.writerow(row)
-    
-    
+                
+
 
 
 # +++++++++++++++++++++++++++++++++++++++
@@ -1346,9 +1287,7 @@ while not startSimulation:
             sensorTCPList=sensorList(nodeList, adeNodes, mbs)
             sensorTCP=sensorTCPList               
                 
-            
-            
-            
+
             
             ##+++++++++++++++++++++++++++++++++++++++
             ##just visualization stuff
@@ -1519,109 +1458,6 @@ while not startSimulation:
             mbs.SetPreStepUserFunction(PreStepUserFunction)
 
             ##+++++++++++++++++++++++++++++++++++++++
-            ## Starting Simulation using Movelist           
-            if config.simulation.useMoveList:
-                config.simulation.useInverseKinematic=False
-                ##+++++++++++++++++++++++++++++++++++++++
-                ## Checking and Setting Connections of ADEs
-                TimeStamp = 0
-
-                for i in range(len(adeMoveList.data)-1):
-                    mbs.variables['line']=i+1
-                    SensorValuesTime[i+1]={}
-
-
-                    nextTimeStamp = False
-                    cnt=i
-
-                    simulationSettings.timeIntegration.numberOfSteps = int(config.simulation.nrSteps)
-                    endTime=cf.CalcPause(adeMoveList,cnt+1,minPauseVal = 0.2)
-                    config.simulation.endTime = endTime
-                    simulationSettings.timeIntegration.endTime = endTime
-                    
-                    if cnt > 0:
-                        ##+++++++++++++++++++++++++++++++++++++++
-                        ## Checking if Connections changed with the MoveList
-                        for j in range(len(adeIDs)):
-                            index = adeMoveList.GetIndexOfID(adeIDs[j])
-                            if index != None:
-                                if config.simulation.connectionInfoInMoveList:
-                                    if adeMoveList.data[cnt,index+4] != adeMoveList.data[cnt-1,index+4] or adeMoveList.data[cnt,index+5] != adeMoveList.data[cnt-1,index+5] or adeMoveList.data[cnt,index+6] != adeMoveList.data[cnt-1,index+6]:
-                                        nextTimeStamp = True
-                                else:
-                                    if  adeMoveList.data[cnt,index+4] != 0 or adeMoveList.data[cnt,index+5] != 0 or adeMoveList.data[cnt,index+6] != 0: #for 6ADEs
-                                        nextTimeStamp = True
-                                
-                        if nextTimeStamp == True:
-                            nextTimeStamp = False
-                            TimeStamp += 1
-
-                            if TimeStamp > 0:
-                                IDList = []
-                                for ID in adeNodes[0].elements:
-                                    IDList += [ID]
-                                    ##+++++++++++++++++++++++++++++++++++++++
-                                    ## Disconnecting Connections that are no longer Needed
-                                    for k in range(len(adeNodes[TimeStamp-1].connectionList[ID])):
-                                        if adeNodes[TimeStamp-1].connectionList[ID][k] not in adeNodes[TimeStamp].connectionList[ID] and (adeNodes[TimeStamp-1].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp-1].connectionList[ID][k][2] <= -1):
-                                            DisconnectADE(mbs,ADE,adeNodes[TimeStamp-1].connectionList[ID][k])
-                                            if config.simulation.debugConnectionInfo:
-                                                logging.info("Disconnected" + str(adeNodes[TimeStamp-1].connectionList[ID][k]))
-                                    ##+++++++++++++++++++++++++++++++++++++++
-                                    ## Connecting new Connections of ADEs
-                                    for k in range(len(adeNodes[TimeStamp].connectionList[ID])):
-                                        if adeNodes[TimeStamp].connectionList[ID][k] not in adeNodes[TimeStamp-1].connectionList[ID] and (adeNodes[TimeStamp].connectionList[ID][k][2] in IDList or adeNodes[TimeStamp].connectionList[ID][k][2] <= -1):
-                                            ConnectADE(mbs,ADE,adeNodes[TimeStamp].connectionList[ID][k])
-                                            if config.simulation.debugConnectionInfo:
-                                                logging.info("Connected" + str(adeNodes[TimeStamp].connectionList[ID][k]))
-
-                                mbs.AssembleLTGLists()
-                                mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
-
-                    ##+++++++++++++++++++++++++++++++++++++++
-                    ## Simulation of Mesh
-                    if computeDynamic:
-                        simulationSettings.solutionSettings.solutionInformation = "MoveList Line " +str(i+2)
-                        
-                        if not config.simulation.SolveDynamic:
-                            numberOfLoadSteps=100
-                            simulationSettings.staticSolver.numberOfLoadSteps = numberOfLoadSteps
-                            
-                            exu.SolveStatic(mbs, simulationSettings = simulationSettings,showHints=True)
-                            
-                            timeTotal=timeTotal#+mbs.sys['staticSolver'].timer.total
-                            numberOfSteps=numberOfSteps+1
-
-                        else:
-                            exu.SolveDynamic(mbs, simulationSettings = simulationSettings,showHints=True)
-                            
-                            timeTotal=timeTotal+mbs.sys['dynamicSolver'].timer.total
-                            numberOfSteps=numberOfSteps+1
-                        
-                        
-                        ## Sending new Sensor Values to Webserver
-                        SensorValuesTime[cnt+1][0]={}
-                        SensorValues[cnt+1] = {}
-                        for ID in adeIDs:
-                            SensorValues[cnt+1][ID] = np.asmatrix([mbs.GetSensorValues(ADE[ID]['sensors'][0])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][1])[0:2],mbs.GetSensorValues(ADE[ID]['sensors'][2])[0:2]])
-                            # sensorNumbers=np.asmatrix([ADE[ID]['sensors'][0],ADE[ID]['sensors'][1],ADE[ID]['sensors'][2]])
-                            # mbs.GetSensor(ADE[ID]['sensors'][0])['markerNumber']
-                                                     
-                        # client.Put('SensorValues',pickle.dumps(SensorValues))
-
-                        SensorValuesTime[cnt+1][0]=SensorValues[cnt+1]
-
-                    # if not mbs.GetRenderEngineStopFlag():
-                        sysStateList = mbs.systemData.GetSystemState()
-                        mbs.systemData.SetSystemState(sysStateList,configuration = exu.ConfigurationType.Initial)
-
-                    # else:
-                        
-                        # ##+++++++++++++++++++++++++++++++++++++++
-                        # ## Resetting Simulation
-                        # break
-
-
             if not useInverseKinematic:
                 if displaySimulation and not mbs.GetRenderEngineStopFlag():  
                     SC.renderer.DoIdleTasks()   
@@ -1700,173 +1536,6 @@ while not startSimulation:
     
                     ikObj, mbs2, sensorMbs2TCP = createKinematicModel(mbs, mbs2)
     
-
-
-
-                    if False:
-                        # test circle
-                        r = 0.001
-                        if simulateTowerADEs:
-                            r=0.001
-                        if simulateRabbit:
-                            r=0.2
-                        if simulateGripper:
-                            r=0.15
-                            phi = np.linspace(0, np.pi, 50)
-                        else:
-                            phi = np.linspace(0, 2*np.pi, 10) 
-                        
-                        if simulateRabbit:
-                            phi = np.linspace(0, 4*np.pi, 20) 
-                            dxx=[]
-                            for j in range(len(phi)-1): 
-                                xOld = r* np.array([cos(phi[j]), np.sin(phi[j])])
-                                xNew = r* np.array([cos(phi[j+1]), np.sin(phi[j+1])])
-                                dxx += [xNew - xOld]   
-                            
-                        else:
-                            dxx=[]
-                            for j in range(len(phi)-1): 
-                                xOld = r* np.array([-cos(phi[j]), np.sin(phi[j])])
-                                xNew = r* np.array([-cos(phi[j+1]), np.sin(phi[j+1])])
-                                dxx += [xNew - xOld]     
-        
-                        
-        
-                        if simulateGripper:
-                            dx2={}
-                            for k in range(len(dxx)):
-                                dx2[k]=[]
-                                
-                                for i in range(len(nodeList)):
-                                    if simulateGripper:
-                                        if i ==1:
-                                            dxx[k][0]=-dxx[k][0]
-                                    else:
-                                        dxx[k][0]=dxx[k][0]
-                                        
-                                    dx2[k]+=list(dxx[k])#+list(dxx[k]) #+list(dxx[k]) #<- change value here to go
-                                
-    
-                            r=0.5
-                            phi = np.linspace(np.pi/2, np.pi, 50)
-                            dxx=[]
-                            for j in range(len(phi)-1): 
-                                xOld = r* np.array([-cos(phi[j]), np.sin(phi[j])])
-                                xNew = r* np.array([-cos(phi[j+1]), np.sin(phi[j+1])])
-                                dxx += [xNew - xOld]     
-    
-    
-                            for j in range(len(dxx)):
-                                dx2[k+j+1]=[]
-                                
-                                for i in range(len(nodeList)):
-                                    if i ==1:
-                                        dxx[j][0]=dxx[j][0]
-                                    else:
-                                        dxx[j][0]=dxx[j][0]
-                                        
-                                    dx2[k+j+1]+=list(dxx[j])#+list(dxx[k]) #+list(dxx[k]) #<- change value here to go                         
-                                
-                             
-                            
-                         
-                        # xVar=np.linspace(0,0.5,5)
-                        # for i in range(len(xVar)-1):
-                        #     dx2[k+i]=[]
-                        #     xOld = np.array([xVar[i],xVar[i]*0])
-                        #     xNew = np.array([xVar[i+1],xVar[i+1]*0])
-                        #     dxx += [xNew - xOld]  
-                                
-                        #     for j in range(len(nodeList)):
-                        #         # dxx[k+i][0]+=dxx[k+i][0]
-                                
-                        #         dx2[k+i]+=list(dxx[k+i])#+list(dxx[k]) #+list(dxx[k]) #<- change value here to go
-                            
-                            
-                    # #user function for moving graphics:
-                    # def UFgraphics(mbsV, objectNum):
-                    #     gLine=[]
-    
-                    #     mbs = mbsV.variables['mbs']
-                        
-                    #     for sens in range(len(sensorMbs2TCP)):
-                    #         A=mbs.GetSensorValues(sensorMbs2TCP[sens],configuration=exu.ConfigurationType.Visualization)
-                            
-                    #         for k in range(len(dxx)):
-                    #             if simulateGripper:
-                    #                 # if sens==0:
-                    #                 dxx[k][0]=-dxx[k][0]
-                                        
-                    #             gLine+=[GraphicsDataLine([A,A+np.array(list(dxx[k])+[0])], color=color4blue)]
-                    #             A=A+np.array(list(dxx[k])+[0])
-                    
-                    #     return gLine
-                    
-                    # if visualizeTrajectory:
-                    #     ground = mbsV.AddObject(ObjectGround(visualization=VObjectGround(graphicsDataUserFunction=UFgraphics)))
-                    
-                     
-                        
-                    # mbsV.Assemble()
-                        
-                    
-                    
-                    
-                    
-                    
-                    # # test straight line
-                    # dxx=[]
-                    # xVar=np.linspace(0,0.01,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([xVar[i],xVar[i]])
-                    #         xNew = np.array([xVar[i+1],xVar[i+1]])
-                    #         dxx += [xNew - xOld]  
-    
-    
-                    # test horizontal-line
-                    # dxx=[]
-                    # xVar=np.linspace(0,0.5,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([xVar[i],0])
-                    #         xNew = np.array([xVar[i+1],0])
-                    #         dxx += [xNew - xOld]  
-                    
-                    
-                    # # dxx=[]
-                    # xVar=np.linspace(0,0.1,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([0,xVar[i]])
-                    #         xNew = np.array([0,xVar[i+1]])
-                    #         dxx += [xNew - xOld]   
-    
-    
-                    # xVar=np.linspace(0,0.5,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([-xVar[i],0])
-                    #         xNew = np.array([-xVar[i+1],0])
-                    #         dxx += [xNew - xOld]  
-                            
-                    
-                    # xVar=np.linspace(0,0.2,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([0,-xVar[i]])
-                    #         xNew = np.array([0,-xVar[i+1]])
-                    #         dxx += [xNew - xOld]                         
-    
-    
-                    # xVar=np.linspace(0,0.5,5)
-                    # for i in range(len(xVar)-1):
-                    #         xOld = np.array([-xVar[i],0])
-                    #         xNew = np.array([-xVar[i+1],0])
-                    #         dxx += [xNew - xOld]                          
-                            
-                    
-                    # test with two points
-                    # dxx=[np.array([0.08,0]),np.array([0.08,0])]
-                    # dxx=[np.array([0.,0.2*0])]
-                    
-                    
                     cnt=0
                     actorList = []
                     sortedActorStrokesList=[] 
@@ -1889,32 +1558,23 @@ while not startSimulation:
                     
                     # mbs.SetPreStepUserFunction(PreStepUserFunction)
                     
-                        
-                    # for k in range(len(dxx)):
-                    #     dx=[]
-                    
-                    #     for i in range(len(nodeList)):
-                    #         if simulateGripper:
-                    #             if i ==1:
-                    #                 dxx[k][0]=-dxx[k][0]
-                    #         else:
-                    #             dxx[k][0]=dxx[k][0]
-                                
-                    #         dx+=list(dxx[k])#+list(dxx[k]) #+list(dxx[k]) #<- change value here to go
                     
                     t = 0
+                    # maximal time
                     tTotal = 100
                     
+                    # initial state of the gripper
                     mbs.variables['state'] = gripperStates.APPROACH_OBJECT
+
                     mbs.variables['myDict'] = {
                         'posObj': [p0[0], p0[1]],
-                        # 'targetPosObj': [p0[0], p0[1]],
-                        'targetPosObj': [0.229/2,0.229*7],
+                        'targetPosObj': [p0[0]-0.229*5.5, p0[1]+0.2],
                         'TCPcoords': adeNodes.nodeDefinition[TCP],
                         'sContactForceList': sContactForceList,
                         'sensorTCP': sensorTCP,
                     }
                     
+                    # calculate relative positions according to object position
                     mbs.variables['myDict'] = calcPositions(mbs.variables['myDict'])
     
         
@@ -1942,10 +1602,10 @@ while not startSimulation:
                         # ground = mbsV2.AddObject(ObjectGround(visualization=VObjectGround(graphicsDataUserFunction=UFgraphicsIK)))
                         mbsV2.Assemble() 
                         
-                        
-                        # plotContactForceNorms(mbs, sContactForceList)  # alle Richtungen
-                        appendContactForcesToCSV(mbs, sContactForceList, 'force_log.csv')
-        
+                        # write contact forces to CSV
+                        # appendContactForcesToCSV(mbs, sContactForceList[4:], 'force_log_parallel.csv')
+
+                        # call functionStateMachine
                         l1, mbs.variables['state'], mbs.variables['myDict'] = functionStateMachine(t, l0, ikObj, mbs.variables['state'], mbs.variables['myDict'])
 
                                                     
@@ -2024,13 +1684,7 @@ while not startSimulation:
                                     # sensorValueError=np.array([mbs.GetSensorValues(sensorTCP)[0],mbs.GetSensorValues(sensorTCP)[1]])
                                     # gapWithoutCorr= np.linalg.norm(sensorValueError-iWantToGoToThisValue)
                                     # print('gap without correction:',gapWithoutCorr*1000,'mm')                            
-                                
-                                
-                                
-                                
-    
-    
-                    
+
     
                                 ## Sending new Sensor Values to Webserver
                                 SensorValuesTime[cnt+1][0]={}
@@ -2040,11 +1694,11 @@ while not startSimulation:
                                 # client.Put('SensorValues',pickle.dumps(SensorValues))                           
                                 SensorValuesTime[cnt+1][0]=SensorValues[cnt+1]    
                                 
-                                for plotSensorMbs2TCP in sensorMbs2TCP:
-                                    plt.scatter( mbs2.GetSensorValues(plotSensorMbs2TCP)[0], mbs2.GetSensorValues(plotSensorMbs2TCP)[1], marker='d', color='blue' )
+                                # for plotSensorMbs2TCP in sensorMbs2TCP:
+                                #     plt.scatter( mbs2.GetSensorValues(plotSensorMbs2TCP)[0], mbs2.GetSensorValues(plotSensorMbs2TCP)[1], marker='d', color='blue' )
                                     
-                                for plotSensorTCP in sensorTCP:
-                                    plt.scatter( mbs.GetSensorValues(plotSensorTCP)[0], mbs.GetSensorValues(plotSensorTCP)[1] , marker='x', color='blue')
+                                # for plotSensorTCP in sensorTCP:
+                                #     plt.scatter( mbs.GetSensorValues(plotSensorTCP)[0], mbs.GetSensorValues(plotSensorTCP)[1] , marker='x', color='blue')
                                     
                                     
                                     
@@ -2229,7 +1883,7 @@ while not startSimulation:
 
 
 from exudyn.plot import PlotSensor
-PlotSensor(mbs, sensorNumbers=['solution/sensorTest.txt'], components=[-1])
+# PlotSensor(mbs, sensorNumbers=['solution/sensorTest.txt'], components=[-1])
 
 
 
